@@ -1,0 +1,7 @@
+.env
+db-data/
+app/node_modules/
+app/.next/
+.DS_Store
+.claude/
+certs/

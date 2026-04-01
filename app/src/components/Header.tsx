@@ -1,0 +1,117 @@
+'use client';
+
+import Link from 'next/link';
+/* eslint-disable @next/next/no-img-element */
+import { usePathname } from 'next/navigation';
+import { signOut, useSession } from 'next-auth/react';
+import { LayoutDashboard, Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User } from 'lucide-react';
+import { useCategory } from '@/lib/category-context';
+
+type NavItem = { href: string; label: string | ((cat: string) => string); icon: typeof LayoutDashboard; vertriebOnly: boolean };
+
+const NAV_ITEMS: NavItem[] = [
+  { href: '/',           label: (cat) => cat === 'RECRUITING' ? 'Kandidaten' : 'Leads', icon: LayoutDashboard, vertriebOnly: false },
+  { href: '/companies',  label: 'Firmen',   icon: Building2,      vertriebOnly: true },
+  { href: '/pipeline',   label: 'Pipeline', icon: Kanban,         vertriebOnly: false },
+  { href: '/templates',  label: (cat) => cat === 'RECRUITING' ? 'Stellen' : 'Produkte', icon: Package, vertriebOnly: false },
+  { href: '/tasks',      label: 'Aufgaben', icon: CheckSquare,    vertriebOnly: false },
+];
+
+export default function Header() {
+  const pathname = usePathname();
+  const { data: session } = useSession();
+  const { category, setCategory } = useCategory();
+
+  return (
+    <header className="bg-tc-dark sticky top-0 z-30">
+      <div className="max-w-7xl mx-auto px-4 flex items-center h-14 gap-6">
+        <Link href="/" className="shrink-0 flex items-center gap-2">
+          <img src="/logo-white.svg" alt="Tönjes Consulting" className="h-8 w-auto" />
+          <span className="text-white font-bold text-lg tracking-wide font-sans">CRM</span>
+        </Link>
+
+        {/* Category Toggle */}
+        <div className="flex items-center bg-white/10 rounded-lg p-0.5">
+          <button
+            onClick={() => setCategory('VERTRIEB')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all
+              ${category === 'VERTRIEB'
+                ? 'bg-tc-blue text-tc-dark shadow-sm'
+                : 'text-white/60 hover:text-white/90'
+              }`}
+          >
+            <Briefcase size={13} />
+            Vertrieb
+          </button>
+          <button
+            onClick={() => setCategory('RECRUITING')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all
+              ${category === 'RECRUITING'
+                ? 'bg-tc-blue text-tc-dark shadow-sm'
+                : 'text-white/60 hover:text-white/90'
+              }`}
+          >
+            <UserSearch size={13} />
+            Recruiting
+          </button>
+        </div>
+
+        <nav className="flex items-center gap-1 flex-1">
+          {NAV_ITEMS.filter(item => !item.vertriebOnly || category === 'VERTRIEB').map(({ href, label, icon: Icon }) => {
+            const active = pathname === href;
+            const displayLabel = typeof label === 'function' ? label(category) : label;
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                  ${active
+                    ? 'bg-tc-blue/20 text-tc-blue'
+                    : 'text-white/60 hover:bg-white/10 hover:text-white/90'
+                  }`}
+              >
+                <Icon size={15} />
+                {displayLabel}
+              </Link>
+            );
+          })}
+
+          {session?.user.role === 'ADMIN' && (
+            <Link
+              href="/admin"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ml-auto
+                ${pathname.startsWith('/admin')
+                  ? 'bg-tc-blue/20 text-tc-blue'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white/90'
+                }`}
+            >
+              <Shield size={15} />
+              Admin
+            </Link>
+          )}
+        </nav>
+
+        <div className="flex items-center gap-3 ml-auto">
+          <Link
+            href="/settings"
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm font-medium transition-colors
+              ${pathname === '/settings'
+                ? 'bg-tc-blue/20 text-tc-blue'
+                : 'text-white/50 hover:bg-white/10 hover:text-white/90'
+              }`}
+          >
+            <User size={15} />
+            <span className="hidden sm:block">{session?.user.name}</span>
+          </Link>
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="flex items-center gap-1 text-sm text-white/50 hover:text-red-400 transition-colors"
+          >
+            <LogOut size={15} />
+            <span className="hidden sm:block">Abmelden</span>
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}

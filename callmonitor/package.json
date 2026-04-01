@@ -1,0 +1,7 @@
+{
+  "name": "microcrm-callmonitor",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "start": "node index.js" },
+  "dependencies": { "pg": "^8.13.0" }
+}

@@ -1,0 +1,187 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id @default(cuid())
+  name          String
+  email         String        @unique
+  password      String
+  role          Role          @default(USER)
+  dialMethod     String        @default("tel")
+  emailSignature String        @default("")
+  createdAt      DateTime      @default(now())
+  leads         Lead[]
+  opportunities Opportunity[]
+  notes         Note[]
+  assignedTasks Task[]
+  attachments   Attachment[]
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  website   String?
+  createdAt DateTime @default(now())
+  leads     Lead[]
+}
+
+model Lead {
+  id               String        @id @default(cuid())
+  name             String
+  companyId        String?
+  companyRef       Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  email            String?
+  phone            String?
+  category         LeadCategory  @default(VERTRIEB)
+  formalAddress    Boolean       @default(false)
+  archived         Boolean       @default(false)
+  aiSentimentScore Int?
+  aiSentimentAt    DateTime?
+  lastContactedAt  DateTime?
+  missedCallsCount Int           @default(0)
+  noShowCount      Int           @default(0)
+  createdAt        DateTime      @default(now())
+  assignedToId     String?
+  assignedTo       User?         @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  opportunities    Opportunity[]
+  notes            Note[]
+  tasks            Task[]
+  attachments      Attachment[]
+  emails           Email[]
+}
+
+model ProductTemplate {
+  id            String       @id @default(cuid())
+  name          String
+  description   String?
+  defaultValue  Float?
+  category      LeadCategory @default(VERTRIEB)
+  createdAt     DateTime     @default(now())
+  opportunities Opportunity[]
+}
+
+model Opportunity {
+  id                String           @id @default(cuid())
+  title             String
+  stage             OpportunityStage @default(PROPOSAL)
+  hasIdentifiedNeed Boolean          @default(false)
+  isClosingReady    Boolean          @default(false)
+  value             Float?
+  expectedCloseDate DateTime?
+  lastActivityAt    DateTime?
+  aiSentimentScore  Int?
+  aiSentimentAt     DateTime?
+  createdAt         DateTime         @default(now())
+  leadId            String
+  lead              Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  templateId        String?
+  template          ProductTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  assignedToId      String?
+  assignedTo        User?            @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  notes             Note[]
+  tasks             Task[]
+  attachments       Attachment[]
+}
+
+model Note {
+  id            String       @id @default(cuid())
+  content       String
+  isAiGenerated Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  leadId        String?
+  lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  authorId      String?
+  author        User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+}
+
+model Task {
+  id            String       @id @default(cuid())
+  title         String
+  dueDate       DateTime?
+  isCompleted   Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  leadId        String?
+  lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  assignedToId  String?
+  assignedTo    User?        @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+}
+
+model Attachment {
+  id            String       @id @default(cuid())
+  fileName      String
+  fileSize      Int
+  mimeType      String
+  createdAt     DateTime     @default(now())
+  leadId        String?
+  lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  uploadedById  String?
+  uploadedBy    User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+}
+
+model Email {
+  id              String         @id @default(cuid())
+  graphMessageId  String
+  subject         String?
+  fromName        String?
+  fromEmail       String
+  toRecipients    String
+  receivedAt      DateTime
+  bodyPreview     String?
+  bodyHtml        String?
+  isRead          Boolean        @default(false)
+  hasAttachments  Boolean        @default(false)
+  direction       EmailDirection
+  syncedAt        DateTime       @default(now())
+  leadId          String
+  lead            Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([graphMessageId, leadId])
+}
+
+model GlobalConfig {
+  key   String @id
+  value String
+}
+
+enum OpportunityStage {
+  // Vertrieb
+  PROPOSAL
+  NEGOTIATION
+  CLOSING
+  WON
+  LOST
+  // Recruiting
+  SCREENING
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+}
+
+enum LeadCategory {
+  VERTRIEB
+  RECRUITING
+}
+
+enum EmailDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum Role {
+  ADMIN
+  USER
+}

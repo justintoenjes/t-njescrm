@@ -1,0 +1,16 @@
+name,company,email,phone,status,pipelineStage
+Thomas Müller,Müller GmbH,thomas.mueller@mueller-gmbh.de,+49 89 123456,NEU,INTRO
+Sandra Koch,Koch & Partner,s.koch@kochpartner.de,+49 30 987654,KONTAKTIERT,QUALIFICATION
+Felix Wagner,Wagner Logistics,f.wagner@wagner-log.de,+49 40 555123,NEU,INTRO
+Petra Schneider,Schneider IT Solutions,p.schneider@schneider-it.de,+49 711 334455,KONTAKTIERT,PROPOSAL
+Markus Bauer,Bauer Immobilien,m.bauer@bauer-immo.de,+49 221 667788,WARTEND,NEGOTIATION
+Julia Hoffmann,Hoffmann Consulting,j.hoffmann@hoffmann-c.de,+49 89 112233,NEU,QUALIFICATION
+Stefan Richter,Richter & Söhne,s.richter@richter-soehne.de,+49 30 445566,KONTAKTIERT,PROPOSAL
+Anna Klein,Klein Marketing,a.klein@klein-marketing.de,+49 40 778899,ABGESCHLOSSEN,CLOSING
+Michael Schulz,Schulz Automotive,m.schulz@schulz-auto.de,+49 711 990011,WARTEND,INTRO
+Laura Fischer,Fischer Designs,l.fischer@fischerdesigns.de,+49 221 223344,NEU,QUALIFICATION
+Tobias Weber,Weber Tech,t.weber@webertech.de,+49 89 556677,KONTAKTIERT,INTRO
+Christine Meyer,Meyer Pharma,c.meyer@meyer-pharma.de,+49 30 889900,WARTEND,PROPOSAL
+Daniel Braun,Braun Energie,d.braun@braun-energie.de,+49 40 112244,NEU,NEGOTIATION
+Sabine Krause,Krause Finanz,s.krause@krause-finanz.de,+49 711 334466,KONTAKTIERT,CLOSING
+Oliver Schmitt,Schmitt Bau,o.schmitt@schmitt-bau.de,+49 221 556688,NEU,INTRO

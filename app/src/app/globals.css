@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Override default blue focus rings and primary buttons with TC brand colors */
+  *:focus-visible {
+    --tw-ring-color: #76BDD3;
+  }
+}
