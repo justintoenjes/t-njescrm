@@ -5,3 +5,5 @@ app/.next/
 .DS_Store
 .claude/
 certs/
+app/tsconfig.tsbuildinfo
+.deploy-timing.log
