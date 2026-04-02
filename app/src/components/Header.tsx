@@ -23,7 +23,7 @@ export default function Header() {
   const { category, setCategory } = useCategory();
 
   return (
-    <header className="bg-tc-dark sticky top-0 z-30">
+    <header className="bg-tc-dark sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
       <div className="max-w-7xl mx-auto px-4 flex items-center h-14 gap-6">
         <Link href="/" className="shrink-0 flex items-end gap-2">
           <img src="/logo-white.svg" alt="Tönjes Consulting" className="h-8 w-auto" />

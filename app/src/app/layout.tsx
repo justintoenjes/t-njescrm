@@ -16,6 +16,10 @@ export const metadata: Metadata = {
   title: 'Tönjes CRM',
   description: 'CRM – Tönjes Consulting GmbH',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icon-512.png',
+    apple: '/apple-touch-icon.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

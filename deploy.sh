@@ -40,7 +40,8 @@ wait_for_service() {
   exit 1
 }
 
-# ── SSH prüfen ──────────────────────────────────────────────────────────────
+# ── Checks ──────────────────────────────────────────────────────────────────
+ensure_committed
 ensure_ssh "$SSH_CMD"
 
 # ── Sync App (direkt nach $APP_DIR, kein /tmp/ Umweg) ──────────────────────
