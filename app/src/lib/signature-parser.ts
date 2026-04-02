@@ -34,7 +34,8 @@ const PHONE_PATTERNS = [
 ];
 
 // German legal form suffixes for company detection
-const COMPANY_PATTERN = /(?:[\w\u00C0-\u024F&.\-\s]{2,40}\s+)?(?:GmbH\s*&\s*Co\.?\s*KG(?:aA)?|GmbH|mbH|AG|KG(?:aA)?|e\.?\s?K\.|GbR|OHG|UG|SE|Inc\.|Ltd\.?|LLC|S\.?A\.?)\b/gi;
+// Require at least one proper word (3+ chars) before the suffix to avoid false positives like "se", "kg"
+const COMPANY_PATTERN = /(?:[\w\u00C0-\u024F&.\-]{3,}[\w\u00C0-\u024F&.\-\s]{0,37}\s+)(?:GmbH\s*&\s*Co\.?\s*KG(?:aA)?|GmbH|mbH|AG|KG(?:aA)?|e\.?\s?K\.|GbR|OHG|UG|SE|Inc\.|Ltd\.?|LLC|S\.?A\.?)\b/gi;
 
 // Job title patterns (German + English)
 const TITLE_PATTERNS = [

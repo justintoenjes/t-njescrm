@@ -29,6 +29,48 @@ type SearchRequest = {
 
 const OFFER_KEYWORDS = 'Angebot OR Kostenvoranschlag OR Offerte OR Proposal OR Preisangebot OR Auftragsbestätigung OR Angebotserstellung';
 
+// Filter out automated/newsletter senders
+const NOREPLY_PATTERNS = [
+  /^no-?reply@/i,
+  /^noreply@/i,
+  /^newsletter@/i,
+  /^news@/i,
+  /^info@/i,
+  /^service@/i,
+  /^support@/i,
+  /^mailer-daemon@/i,
+  /^postmaster@/i,
+  /^notifications?@/i,
+  /^alert@/i,
+  /^donotreply@/i,
+  /^guthaben@/i,
+  /^keineantwort/i,
+  /^groups-noreply@/i,
+  /^bounce/i,
+  /^marketing@/i,
+  /^team@/i,
+  /^hello@/i,
+  /^training\./i,
+];
+
+const NEWSLETTER_DOMAINS = [
+  'linkedin.com', 'facebook.com', 'twitter.com', 'x.com',
+  'google.com', 'youtube.com', 'apple.com', 'microsoft.com',
+  'amazon.com', 'amazon.de', 'paypal.com', 'ebay.de', 'ebay.com',
+  'xing.com', 'github.com', 'notion.so', 'slack.com',
+  'check24.de', 'klarmobil.de', 'spendit.de',
+];
+
+function isAutomatedSender(email: string): boolean {
+  const lower = email.toLowerCase();
+  if (NOREPLY_PATTERNS.some(p => p.test(lower))) return true;
+  const domain = lower.split('@')[1] ?? '';
+  if (NEWSLETTER_DOMAINS.includes(domain)) return true;
+  // Subdomains of newsletter domains (e.g. newsletter.elv.com, my.check24.de)
+  if (NEWSLETTER_DOMAINS.some(d => domain.endsWith('.' + d))) return true;
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -81,11 +123,20 @@ export async function POST(request: NextRequest) {
     const messages: any[] = data.value ?? [];
     const nextCursor: string | null = data['@odata.nextLink'] ?? null;
 
-    // Filter external senders
+    // Filter external senders + exclude newsletters/automated
     const externalMessages = messages.filter((msg: any) => {
       const fromEmail = msg.from?.emailAddress?.address?.toLowerCase() ?? '';
       if (!fromEmail || fromEmail === ownEmail) return false;
       if (ownDomain && fromEmail.endsWith(`@${ownDomain}`)) return false;
+      if (isAutomatedSender(fromEmail)) return false;
+
+      // Server-side date filter (Graph $search ignores KQL dates)
+      if (dateFrom || dateTo) {
+        const msgDate = msg.receivedDateTime ? msg.receivedDateTime.substring(0, 10) : '';
+        if (dateFrom && msgDate < dateFrom) return false;
+        if (dateTo && msgDate > dateTo) return false;
+      }
+
       return true;
     });
 
@@ -200,12 +251,9 @@ function buildGraphUrl(mode: string, dateFrom?: string, dateTo?: string): string
   const useSearch = mode === 'offers' || mode === 'both';
 
   if (useSearch) {
-    // When using $search, $orderby and $filter on receivedDateTime are NOT allowed.
-    // Date filtering is done via KQL syntax inside $search instead.
-    let kql = OFFER_KEYWORDS;
-    if (dateFrom) kql += ` AND received>=${dateFrom}`;
-    if (dateTo) kql += ` AND received<=${dateTo}`;
-    const search = `$search="${kql}"`;
+    // When using $search, $orderby and $filter are NOT allowed.
+    // Date filtering is done server-side after fetching results.
+    const search = `$search="${OFFER_KEYWORDS}"`;
     const params = [select, top, search].filter(Boolean).join('&');
     return `https://graph.microsoft.com/v1.0/me/messages?${params}`;
   }
