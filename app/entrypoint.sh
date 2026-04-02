@@ -2,6 +2,35 @@
 set -e
 
 echo "Applying database schema..."
+# Migrate name → firstName/lastName if old column still exists
+node -e "
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+async function migrate() {
+  const hasName = await prisma.\$queryRawUnsafe(
+    \"SELECT column_name FROM information_schema.columns WHERE table_name='Lead' AND column_name='name'\"
+  );
+  if (hasName.length > 0) {
+    console.log('Migrating Lead.name → firstName/lastName...');
+    await prisma.\$executeRawUnsafe('ALTER TABLE \"Lead\" ADD COLUMN IF NOT EXISTS \"firstName\" TEXT NOT NULL DEFAULT \'\'');
+    await prisma.\$executeRawUnsafe('ALTER TABLE \"Lead\" ADD COLUMN IF NOT EXISTS \"lastName\" TEXT NOT NULL DEFAULT \'\'');
+    await prisma.\$executeRawUnsafe(\`
+      UPDATE \"Lead\" SET
+        \"firstName\" = CASE WHEN position(' ' in \"name\") > 0
+          THEN left(\"name\", length(\"name\") - length(substring(\"name\" from '([^ ]+)\$')) - 1)
+          ELSE \"name\" END,
+        \"lastName\" = CASE WHEN position(' ' in \"name\") > 0
+          THEN substring(\"name\" from '([^ ]+)\$')
+          ELSE '' END
+      WHERE \"firstName\" = '' AND \"lastName\" = ''
+    \`);
+    await prisma.\$executeRawUnsafe('ALTER TABLE \"Lead\" DROP COLUMN IF EXISTS \"name\"');
+    console.log('Migration complete.');
+  }
+  await prisma.\$disconnect();
+}
+migrate().catch(e => { console.error('Name migration error:', e); });
+"
 npx prisma db push --accept-data-loss
 
 echo "Seeding default config..."
