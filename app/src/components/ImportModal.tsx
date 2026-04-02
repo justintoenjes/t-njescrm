@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { X, Upload, AlertCircle, CheckCircle2, Mail, Search, ChevronDown, Loader2 } from 'lucide-react';
+import { useRef, useState, useCallback } from 'react';
+import { X, Upload, AlertCircle, CheckCircle2, Mail, Search, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import Papa from 'papaparse';
 import { useCategory } from '@/lib/category-context';
 
@@ -23,6 +23,7 @@ type ScannedContact = {
   source: 'signature' | 'offer';
   matchedSubject: string;
   matchedDate: string;
+  matchedPreview: string;
   confidence: number;
   isDuplicate: boolean;
   existingLeadId?: string;
@@ -70,7 +71,6 @@ export default function ImportModal({ onClose, onImported }: Props) {
           </div>
         </div>
 
-        {/* Tab content */}
         {tab === 'csv' ? (
           <CsvTab onClose={onClose} onImported={onImported} />
         ) : (
@@ -82,7 +82,7 @@ export default function ImportModal({ onClose, onImported }: Props) {
 }
 
 // ══════════════════════════════════════════════
-// CSV Tab (original ImportModal content)
+// CSV Tab
 // ══════════════════════════════════════════════
 
 function CsvTab({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
@@ -211,10 +211,47 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [totalScanned, setTotalScanned] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [allScanned, setAllScanned] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
 
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ created: number; errors: string[] } | null>(null);
+
+  // Fetch one page and return { newUniqueCount, cursor, scanned }
+  const fetchPage = useCallback(async (cursor: string | null, existingEmails: Set<string>): Promise<{
+    newContacts: ScannedContact[];
+    newUniqueCount: number;
+    nextCursor: string | null;
+    scanned: number;
+  }> => {
+    const res = await fetch('/api/mailbox-scan/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        ...(cursor ? { cursor } : {}),
+      }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? `Fehler (${res.status})`);
+    }
+
+    const data = await res.json();
+    const pageContacts: ScannedContact[] = data.contacts ?? [];
+    const unique = pageContacts.filter(c => !existingEmails.has(c.email.toLowerCase()));
+
+    return {
+      newContacts: pageContacts,
+      newUniqueCount: unique.length,
+      nextCursor: data.nextCursor ?? null,
+      scanned: data.totalScanned ?? 0,
+    };
+  }, [mode, dateFrom, dateTo]);
 
   async function startScan() {
     setScanning(true);
@@ -223,79 +260,70 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
     setSelected(new Set());
     setTotalScanned(0);
     setNextCursor(null);
+    setAllScanned(false);
+    setExpandedEmail(null);
 
     try {
-      const res = await fetch('/api/mailbox-scan/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-        }),
-      });
+      const result = await fetchPage(null, new Set());
+      setContacts(result.newContacts);
+      setNextCursor(result.nextCursor);
+      setTotalScanned(result.scanned);
+      if (!result.nextCursor) setAllScanned(true);
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setScanError(data.error ?? `Fehler (${res.status})`);
-        setScanning(false);
-        return;
-      }
-
-      const data = await res.json();
-      setContacts(data.contacts);
-      setNextCursor(data.nextCursor);
-      setTotalScanned(data.totalScanned);
-
-      // Auto-select non-duplicates
       const sel = new Set<string>();
-      for (const c of data.contacts) {
+      for (const c of result.newContacts) {
         if (!c.isDuplicate) sel.add(c.email);
       }
       setSelected(sel);
-
       setStep('results');
-    } catch {
-      setScanError('Netzwerkfehler');
+    } catch (e: any) {
+      setScanError(e.message ?? 'Netzwerkfehler');
     } finally {
       setScanning(false);
     }
   }
 
   async function loadMore() {
-    if (!nextCursor) return;
+    if (!nextCursor || allScanned) return;
     setLoadingMore(true);
 
     try {
-      const res = await fetch('/api/mailbox-scan/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, cursor: nextCursor }),
-      });
+      let cursor: string | null = nextCursor;
+      let totalNewUnique = 0;
+      let pagesLoaded = 0;
+      const MAX_PAGES = 10; // safety limit
 
-      if (res.ok) {
-        const data = await res.json();
-        const newContacts: ScannedContact[] = data.contacts;
-        setContacts(prev => {
-          // Deduplicate by email
-          const existing = new Set(prev.map(c => c.email.toLowerCase()));
-          const unique = newContacts.filter(c => !existing.has(c.email.toLowerCase()));
-          return [...prev, ...unique];
-        });
-        setNextCursor(data.nextCursor);
-        setTotalScanned(prev => prev + data.totalScanned);
+      // Keep loading until we find at least 1 new contact or run out of pages
+      while (cursor && totalNewUnique === 0 && pagesLoaded < MAX_PAGES) {
+        const existingEmails = new Set(contacts.map(c => c.email.toLowerCase()));
+        const result = await fetchPage(cursor, existingEmails);
+        pagesLoaded++;
 
-        // Auto-select new non-duplicates
-        setSelected(prev => {
-          const next = new Set(prev);
-          for (const c of newContacts) {
-            if (!c.isDuplicate) next.add(c.email);
-          }
-          return next;
-        });
+        const unique = result.newContacts.filter(c => !existingEmails.has(c.email.toLowerCase()));
+        totalNewUnique += unique.length;
+
+        if (unique.length > 0) {
+          setContacts(prev => [...prev, ...unique]);
+          setSelected(prev => {
+            const next = new Set(prev);
+            for (const c of unique) {
+              if (!c.isDuplicate) next.add(c.email);
+            }
+            return next;
+          });
+        }
+
+        setTotalScanned(prev => prev + result.scanned);
+        cursor = result.nextCursor;
+        setNextCursor(result.nextCursor);
+
+        if (!result.nextCursor) {
+          setAllScanned(true);
+          break;
+        }
       }
     } catch {
-      // Silently fail on load more
+      // Silently fail
     } finally {
       setLoadingMore(false);
     }
@@ -363,7 +391,6 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
             Durchsucht Ihr Microsoft 365 Postfach nach potenziellen Kontakten mit Geschäftssignaturen oder Angebotskonversationen.
           </p>
 
-          {/* Mode selection */}
           <div className="space-y-2">
             <label className="text-xs text-gray-500 font-medium">Suchmodus</label>
             {([
@@ -393,7 +420,6 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
             ))}
           </div>
 
-          {/* Date range */}
           <div className="space-y-2">
             <label className="text-xs text-gray-500 font-medium">Zeitraum (optional)</label>
             <div className="flex gap-3">
@@ -476,9 +502,9 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
             </label>
           </div>
 
-          {/* Contact table */}
+          {/* Contact list */}
           <div className="flex-1 overflow-y-auto">
-            {contacts.length === 0 ? (
+            {contacts.length === 0 && !loadingMore ? (
               <div className="text-center py-12 text-gray-400">
                 <Mail size={32} className="mx-auto mb-2 opacity-50" />
                 <p>Keine Kontakte mit Geschäftssignatur gefunden.</p>
@@ -486,7 +512,7 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
               </div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 sticky top-0">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr className="text-left text-xs font-medium text-gray-500 uppercase">
                     <th className="pl-4 pr-2 py-2 w-8"></th>
                     <th className="px-2 py-2">Name</th>
@@ -499,72 +525,97 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {contacts.map(contact => (
-                    <tr
-                      key={contact.email}
-                      className={`${contact.isDuplicate ? 'opacity-50 bg-gray-50' : 'hover:bg-gray-50'}`}
-                    >
-                      <td className="pl-4 pr-2 py-2.5">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(contact.email)}
-                          onChange={() => toggleSelect(contact.email)}
-                          disabled={contact.isDuplicate}
-                          className="accent-tc-blue"
-                        />
-                      </td>
-                      <td className="px-2 py-2.5">
-                        <div className="font-medium text-gray-900">
-                          {`${contact.firstName} ${contact.lastName}`.trim() || '—'}
-                        </div>
-                        {contact.isDuplicate && (
-                          <span className="text-xs text-amber-600">bereits vorhanden</span>
-                        )}
-                      </td>
-                      <td className="px-2 py-2.5 text-gray-600 truncate max-w-[200px]">{contact.email}</td>
-                      <td className="px-2 py-2.5 text-gray-600 hidden lg:table-cell">{contact.company ?? '—'}</td>
-                      <td className="px-2 py-2.5 text-gray-600 hidden lg:table-cell">{contact.phone ?? '—'}</td>
-                      <td className="px-2 py-2.5 text-gray-500 hidden xl:table-cell text-xs">{contact.title ?? '—'}</td>
-                      <td className="px-2 py-2.5 hidden xl:table-cell">
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                          contact.source === 'offer'
-                            ? 'bg-blue-50 text-blue-700'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {contact.source === 'offer' ? 'Angebot' : 'Signatur'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2.5 text-gray-400 text-xs hidden 2xl:table-cell truncate max-w-[200px]">
-                        {contact.matchedSubject || '—'}
-                      </td>
-                    </tr>
-                  ))}
+                  {contacts.map(contact => {
+                    const isExpanded = expandedEmail === contact.email;
+                    return (
+                      <tr
+                        key={contact.email}
+                        className={`group ${contact.isDuplicate ? 'opacity-50 bg-gray-50' : 'hover:bg-gray-50 cursor-pointer'}`}
+                        onClick={() => !contact.isDuplicate && setExpandedEmail(isExpanded ? null : contact.email)}
+                      >
+                        <td className="pl-4 pr-2 py-2.5 align-top">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(contact.email)}
+                            onChange={(e) => { e.stopPropagation(); toggleSelect(contact.email); }}
+                            disabled={contact.isDuplicate}
+                            className="accent-tc-blue mt-0.5"
+                          />
+                        </td>
+                        <td className="px-2 py-2.5 align-top">
+                          <div className="flex items-center gap-1">
+                            {!contact.isDuplicate && (
+                              isExpanded
+                                ? <ChevronDown size={12} className="text-gray-400 shrink-0" />
+                                : <ChevronRight size={12} className="text-gray-300 group-hover:text-gray-400 shrink-0" />
+                            )}
+                            <span className="font-medium text-gray-900">
+                              {`${contact.firstName} ${contact.lastName}`.trim() || '\u2014'}
+                            </span>
+                          </div>
+                          {contact.isDuplicate && (
+                            <span className="text-xs text-amber-600 ml-4">bereits vorhanden</span>
+                          )}
+                          {isExpanded && contact.matchedPreview && (
+                            <div className="mt-2 ml-4 p-2.5 bg-gray-100 rounded-lg text-xs text-gray-600 leading-relaxed max-w-xl">
+                              <div className="text-xs font-medium text-gray-500 mb-1">
+                                {contact.matchedSubject || 'Kein Betreff'}
+                                <span className="font-normal text-gray-400 ml-2">
+                                  {contact.matchedDate ? new Date(contact.matchedDate).toLocaleDateString('de-DE') : ''}
+                                </span>
+                              </div>
+                              {contact.matchedPreview}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-2 py-2.5 text-gray-600 truncate max-w-[200px] align-top">{contact.email}</td>
+                        <td className="px-2 py-2.5 text-gray-600 hidden lg:table-cell align-top">{contact.company ?? '\u2014'}</td>
+                        <td className="px-2 py-2.5 text-gray-600 hidden lg:table-cell align-top">{contact.phone ?? '\u2014'}</td>
+                        <td className="px-2 py-2.5 text-gray-500 hidden xl:table-cell text-xs align-top">{contact.title ?? '\u2014'}</td>
+                        <td className="px-2 py-2.5 hidden xl:table-cell align-top">
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            contact.source === 'offer'
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {contact.source === 'offer' ? 'Angebot' : 'Signatur'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2.5 text-gray-400 text-xs hidden 2xl:table-cell truncate max-w-[200px] align-top">
+                          {contact.matchedSubject || '\u2014'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
           </div>
 
-          {/* Load more */}
-          {nextCursor && contacts.length < 500 && (
-            <div className="border-t px-4 py-2 text-center shrink-0">
+          {/* Footer: load more / all scanned */}
+          <div className="border-t px-4 py-2 text-center shrink-0">
+            {loadingMore ? (
+              <span className="text-sm text-tc-blue flex items-center gap-1.5 justify-center animate-pulse">
+                <Loader2 size={14} className="animate-spin" /> Suche weitere Kontakte… ({totalScanned} E-Mails)
+              </span>
+            ) : allScanned ? (
+              <span className="text-sm text-gray-400 flex items-center gap-1.5 justify-center">
+                <CheckCircle2 size={14} /> Alle E-Mails im Zeitraum durchsucht ({totalScanned})
+              </span>
+            ) : nextCursor && contacts.length < 500 ? (
               <button
                 onClick={loadMore}
-                disabled={loadingMore}
                 className="text-sm text-tc-blue hover:text-tc-dark transition flex items-center gap-1.5 mx-auto"
               >
-                {loadingMore ? (
-                  <><Loader2 size={14} className="animate-spin" /> Lade…</>
-                ) : (
-                  <><ChevronDown size={14} /> Mehr laden</>
-                )}
+                <ChevronDown size={14} /> Mehr laden
               </button>
-            </div>
-          )}
+            ) : null}
+          </div>
         </div>
 
         <div className="flex items-center justify-between p-4 border-t shrink-0">
           <button
-            onClick={() => { setStep('config'); setContacts([]); setSelected(new Set()); }}
+            onClick={() => { setStep('config'); setContacts([]); setSelected(new Set()); setAllScanned(false); }}
             className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg"
           >
             Zurück
@@ -618,7 +669,7 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
 
       <div className="flex justify-between p-4 border-t shrink-0">
         <button
-          onClick={() => { setStep('config'); setContacts([]); setSelected(new Set()); setImportResult(null); }}
+          onClick={() => { setStep('config'); setContacts([]); setSelected(new Set()); setImportResult(null); setAllScanned(false); }}
           className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg"
         >
           Neuer Scan

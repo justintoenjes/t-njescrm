@@ -15,6 +15,7 @@ export type ScannedContact = {
   source: 'signature' | 'offer';
   matchedSubject: string;
   matchedDate: string;
+  matchedPreview: string;
   confidence: number;
   isDuplicate: boolean;
   existingLeadId?: string;
@@ -227,6 +228,7 @@ export async function POST(request: NextRequest) {
         source,
         matchedSubject: subject,
         matchedDate: date,
+        matchedPreview: (msg.bodyPreview ?? '').substring(0, 300),
         confidence,
         isDuplicate: false,
       });
