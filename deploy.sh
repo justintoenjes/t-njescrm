@@ -110,6 +110,7 @@ fi
 deploy_timer "env check"
 
 # ── Build ────────────────────────────────────────────────────────────────────
+run_remote "podman image prune -f" >/dev/null 2>&1 || true
 echo "==> Building app image..."
 run_remote "podman build --security-opt label=disable -t $IMAGE $APP_DIR/"
 deploy_timer "build app"
