@@ -71,7 +71,10 @@ export async function POST(request: NextRequest) {
       if (res.status === 429) {
         return NextResponse.json({ error: 'Zu viele Anfragen. Bitte kurz warten.' }, { status: 429 });
       }
-      return NextResponse.json({ error: 'Graph API Fehler' }, { status: res.status });
+      const errBody = await res.json().catch(() => ({}));
+      const errMsg = errBody?.error?.message ?? `Graph API Fehler (${res.status})`;
+      console.error('Graph API error:', res.status, errMsg);
+      return NextResponse.json({ error: errMsg }, { status: res.status });
     }
 
     const data = await res.json();
@@ -193,22 +196,28 @@ export async function POST(request: NextRequest) {
 function buildGraphUrl(mode: string, dateFrom?: string, dateTo?: string): string {
   const select = '$select=id,subject,from,receivedDateTime,bodyPreview';
   const top = '$top=50';
-  const order = '$orderby=receivedDateTime desc';
 
-  let search = '';
-  if (mode === 'offers') {
-    search = `$search="${OFFER_KEYWORDS}"`;
-  } else if (mode === 'both') {
-    search = `$search="${OFFER_KEYWORDS}"`;
+  const useSearch = mode === 'offers' || mode === 'both';
+
+  if (useSearch) {
+    // When using $search, $orderby and $filter on receivedDateTime are NOT allowed.
+    // Date filtering is done via KQL syntax inside $search instead.
+    let kql = OFFER_KEYWORDS;
+    if (dateFrom) kql += ` AND received>=${dateFrom}`;
+    if (dateTo) kql += ` AND received<=${dateTo}`;
+    const search = `$search="${kql}"`;
+    const params = [select, top, search].filter(Boolean).join('&');
+    return `https://graph.microsoft.com/v1.0/me/messages?${params}`;
   }
-  // For "signatures" mode, no search filter — just recent external mails
 
+  // Signatures mode: no $search, so $orderby and $filter work fine
+  const order = '$orderby=receivedDateTime desc';
   const filters: string[] = [];
   if (dateFrom) filters.push(`receivedDateTime ge ${dateFrom}T00:00:00Z`);
   if (dateTo) filters.push(`receivedDateTime le ${dateTo}T23:59:59Z`);
   const filter = filters.length > 0 ? `$filter=${filters.join(' and ')}` : '';
 
-  const params = [select, top, order, search, filter].filter(Boolean).join('&');
+  const params = [select, top, order, filter].filter(Boolean).join('&');
   return `https://graph.microsoft.com/v1.0/me/messages?${params}`;
 }
 
