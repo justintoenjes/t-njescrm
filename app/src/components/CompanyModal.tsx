@@ -8,7 +8,8 @@ import { OPP_STAGE_LABELS, OPP_STAGE_COLORS } from '@/lib/opportunity';
 
 type LeadSummary = {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string | null;
   phone: string | null;
   phase: LeadPhase;
@@ -83,7 +84,7 @@ export default function CompanyModal({ companyId, onClose, onUpdate, onOpenLead,
   }
 
   const allOpps = company?.leads.flatMap(l =>
-    l.opportunities.map(o => ({ ...o, leadName: l.name }))
+    l.opportunities.map(o => ({ ...o, leadName: `${l.firstName} ${l.lastName}`.trim() }))
   ) ?? [];
 
   const TABS: { key: Tab; label: string }[] = [
@@ -165,7 +166,7 @@ export default function CompanyModal({ companyId, onClose, onUpdate, onOpenLead,
                     className={`flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl ${onOpenLead ? 'cursor-pointer hover:bg-tc-blue/10 transition' : ''}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{lead.name}</p>
+                      <p className="text-sm font-medium text-gray-900">{`${lead.firstName} ${lead.lastName}`.trim()}</p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${TEMP_COLORS[lead.temperature]}`}>
                           {lead.score}

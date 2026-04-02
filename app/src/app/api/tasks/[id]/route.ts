@@ -29,8 +29,8 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
       ...(isCompleted !== undefined ? { isCompleted } : {}),
     },
     include: {
-      lead: { select: { id: true, name: true } },
-      opportunity: { select: { id: true, title: true, lead: { select: { id: true, name: true } } } },
+      lead: { select: { id: true, firstName: true, lastName: true } },
+      opportunity: { select: { id: true, title: true, lead: { select: { id: true, firstName: true, lastName: true } } } },
     },
   });
   return NextResponse.json(updated);

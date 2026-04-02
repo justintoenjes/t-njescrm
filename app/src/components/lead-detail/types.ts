@@ -37,7 +37,8 @@ export type FollowUp = { subject: string; body: string };
 
 export type LeadFull = {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   category: 'VERTRIEB' | 'RECRUITING';
   companyId: string | null;
   companyRef: { id: string; name: string } | null;

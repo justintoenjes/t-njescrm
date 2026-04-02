@@ -13,7 +13,8 @@ import type { GroupNote, GroupEmail, GroupActivity, NoteTarget } from '@/compone
 
 type LeadSummary = {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string | null;
   phone: string | null;
   phase: LeadPhase;
@@ -72,10 +73,11 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
     // Build note targets
     const targets: NoteTarget[] = [];
     data.leads.forEach(l => {
-      targets.push({ type: 'lead', label: l.name, id: l.id });
+      const lName = `${l.firstName} ${l.lastName}`.trim();
+      targets.push({ type: 'lead', label: lName, id: l.id });
       l.opportunities
         .filter(o => !TERMINAL_STAGES.includes(o.stage as any))
-        .forEach(o => targets.push({ type: 'opportunity', label: `${o.title} (${l.name})`, id: o.id }));
+        .forEach(o => targets.push({ type: 'opportunity', label: `${o.title} (${lName})`, id: o.id }));
     });
     setNoteTargets(targets);
     setLoading(false);
@@ -138,7 +140,7 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
   }
 
   const allOpps = company?.leads.flatMap(l =>
-    l.opportunities.map(o => ({ ...o, leadName: l.name }))
+    l.opportunities.map(o => ({ ...o, leadName: `${l.firstName} ${l.lastName}`.trim() }))
   ) ?? [];
   const activeOpps = allOpps.filter(o => !TERMINAL_STAGES.includes(o.stage as any));
   const wonCount = allOpps.filter(o => o.stage === 'WON' || o.stage === 'HIRED').length;
@@ -231,7 +233,7 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
                                 className={`flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl ${onOpenLead ? 'cursor-pointer hover:bg-tc-blue/10 transition' : ''}`}
                               >
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-900">{lead.name}</p>
+                                  <p className="text-sm font-medium text-gray-900">{`${lead.firstName} ${lead.lastName}`.trim()}</p>
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${TEMP_COLORS[lead.temperature]}`}>
                                       {lead.score}

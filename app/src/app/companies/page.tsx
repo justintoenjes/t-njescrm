@@ -28,7 +28,8 @@ type CompanyDetail = {
   name: string;
   leads: {
     id: string;
-    name: string;
+    firstName: string;
+    lastName: string;
     email: string | null;
     phone: string | null;
     phase: LeadPhase;
@@ -274,7 +275,7 @@ export default function CompaniesPage() {
                                           {lead.score}
                                         </span>
                                       </td>
-                                      <td className="px-3 py-2 font-medium text-gray-900">{lead.name}</td>
+                                      <td className="px-3 py-2 font-medium text-gray-900">{`${lead.firstName} ${lead.lastName}`.trim()}</td>
                                       <td className="px-3 py-2">
                                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PHASE_COLORS[lead.phase] ?? ''}`}>
                                           {PHASE_LABELS[lead.phase] ?? lead.phase}

@@ -13,25 +13,25 @@ export async function POST(request: NextRequest) {
 
   const { email, phone } = body;
   const normalizedPhone = normalizePhone(phone);
-  const duplicates: { id: string; name: string; matchedBy: string }[] = [];
+  const duplicates: { id: string; firstName: string; lastName: string; matchedBy: string }[] = [];
 
   if (email) {
     const byEmail = await prisma.lead.findFirst({
       where: { email: { equals: email, mode: 'insensitive' }, archived: false },
-      select: { id: true, name: true },
+      select: { id: true, firstName: true, lastName: true },
     });
     if (byEmail) {
-      duplicates.push({ id: byEmail.id, name: byEmail.name, matchedBy: 'email' });
+      duplicates.push({ id: byEmail.id, firstName: byEmail.firstName, lastName: byEmail.lastName, matchedBy: 'email' });
     }
   }
 
   if (normalizedPhone) {
     const byPhone = await prisma.lead.findFirst({
       where: { phone: normalizedPhone, archived: false },
-      select: { id: true, name: true },
+      select: { id: true, firstName: true, lastName: true },
     });
     if (byPhone && !duplicates.some(d => d.id === byPhone.id)) {
-      duplicates.push({ id: byPhone.id, name: byPhone.name, matchedBy: 'phone' });
+      duplicates.push({ id: byPhone.id, firstName: byPhone.firstName, lastName: byPhone.lastName, matchedBy: 'phone' });
     }
   }
 

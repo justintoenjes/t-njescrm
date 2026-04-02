@@ -18,13 +18,34 @@ export async function POST(request: NextRequest) {
   }
 
   const errors: string[] = [];
-  const toCreate: { name: string; companyId?: string; email?: string; phone?: string; assignedToId?: string }[] = [];
+  const toCreate: { firstName: string; lastName: string; companyId?: string; email?: string; phone?: string; assignedToId?: string }[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    if (!row.name?.trim()) {
-      errors.push(`Zeile ${i + 2}: 'name' fehlt`);
+    // Support firstName/lastName columns OR single name column
+    const hasNameParts = row.firstName?.trim() || row.lastName?.trim();
+    const hasName = row.name?.trim();
+    if (!hasNameParts && !hasName) {
+      errors.push(`Zeile ${i + 2}: 'name' oder 'firstName'/'lastName' fehlt`);
       continue;
+    }
+
+    let firstName: string;
+    let lastName: string;
+    if (hasNameParts) {
+      firstName = row.firstName?.trim() ?? '';
+      lastName = row.lastName?.trim() ?? '';
+    } else {
+      // Split "name" at last space
+      const full = row.name.trim();
+      const lastSpace = full.lastIndexOf(' ');
+      if (lastSpace > 0) {
+        firstName = full.substring(0, lastSpace);
+        lastName = full.substring(lastSpace + 1);
+      } else {
+        firstName = full;
+        lastName = '';
+      }
     }
 
     let companyId: string | undefined;
@@ -39,7 +60,8 @@ export async function POST(request: NextRequest) {
     }
 
     toCreate.push({
-      name: row.name.trim(),
+      firstName,
+      lastName,
       companyId,
       email: row.email?.trim() || undefined,
       phone: normalizePhone(row.phone?.trim()) || undefined,

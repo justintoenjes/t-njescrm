@@ -102,17 +102,18 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
 
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
-  const { name, companyId, email, phone, archived, assignedToId, formalAddress } = body;
+  const { firstName, lastName, companyId, email, phone, archived, assignedToId, formalAddress } = body;
 
   // Track assignment change for push notification
   const oldLead = (isAdmin && assignedToId !== undefined)
-    ? await prisma.lead.findUnique({ where: { id }, select: { assignedToId: true, name: true } })
+    ? await prisma.lead.findUnique({ where: { id }, select: { assignedToId: true, firstName: true, lastName: true } })
     : null;
 
   const updated = await prisma.lead.update({
     where: { id },
     data: {
-      ...(name !== undefined ? { name } : {}),
+      ...(firstName !== undefined ? { firstName } : {}),
+      ...(lastName !== undefined ? { lastName } : {}),
       ...(companyId !== undefined ? { companyId: companyId || null } : {}),
       ...(email !== undefined ? { email: email || null } : {}),
       ...(phone !== undefined ? { phone: normalizePhone(phone) || null } : {}),
@@ -152,7 +153,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
   if (oldLead && assignedToId && assignedToId !== oldLead.assignedToId) {
     sendPushToUser(assignedToId, {
       title: 'Neuer Lead zugewiesen',
-      body: `Dir wurde "${updated.name}" zugewiesen`,
+      body: `Dir wurde "${`${updated.firstName} ${updated.lastName}`.trim()}" zugewiesen`,
       url: '/',
       tag: `lead-assigned-${id}`,
     }).catch(() => {});

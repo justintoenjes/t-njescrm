@@ -94,10 +94,12 @@ export async function POST(_: NextRequest, { params }: Ctx) {
       ).join('\n')
     : '(Keine offenen Opportunities)';
 
+  const fullName = `${lead.firstName} ${lead.lastName}`.trim();
   const useFormal = lead.formalAddress ?? (defaultFormal?.value === 'true');
+  const addressName = useFormal ? lead.lastName : lead.firstName;
   const addressStyle = useFormal
-    ? 'Verwende die formelle Anrede (Sie/Ihnen/Ihr). Sieze den Empfänger konsequent.'
-    : 'Verwende die informelle Anrede (du/dir/dein). Duze den Empfänger konsequent.';
+    ? `Verwende die formelle Anrede (Sie/Ihnen/Ihr). Sieze den Empfänger konsequent. Sprich den Kontakt mit Nachname an (z.B. "Herr/Frau ${lead.lastName}").`
+    : `Verwende die informelle Anrede (du/dir/dein). Duze den Empfänger konsequent. Sprich den Kontakt mit Vorname an (z.B. "Hallo ${lead.firstName}").`;
 
   const isRecruiting = lead.category === 'RECRUITING';
   const contextType = isRecruiting
@@ -109,7 +111,7 @@ export async function POST(_: NextRequest, { params }: Ctx) {
 ${contextType}
 ${addressStyle}
 
-Kontakt: ${lead.name}${lead.companyRef?.name ? ` (${lead.companyRef.name})` : ''}
+Kontakt: ${fullName}${lead.companyRef?.name ? ` (${lead.companyRef.name})` : ''}
 ${lead.email ? `E-Mail: ${lead.email}` : ''}
 Kategorie: ${isRecruiting ? 'Recruiting' : 'Vertrieb/Sales'}
 
@@ -145,7 +147,9 @@ WICHTIG: Generiere KEINE Grußformel (kein "Mit freundlichen Grüßen", "Beste G
       const firma = lead.companyRef?.name || '';
       const oppTitle = lead.opportunities[0]?.title ?? '';
       parsed.subject = subjectConfig.value
-        .replace(/\{\{NAME\}\}/g, lead.name)
+        .replace(/\{\{NAME\}\}/g, fullName)
+        .replace(/\{\{VORNAME\}\}/g, lead.firstName)
+        .replace(/\{\{NACHNAME\}\}/g, lead.lastName)
         .replace(/\{\{JOBTITEL\}\}/g, oppTitle)
         .replace(/\{\{FIRMA\}\}/g, firma);
     }

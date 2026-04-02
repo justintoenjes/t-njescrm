@@ -25,7 +25,7 @@ export async function GET(_: NextRequest, { params }: Ctx) {
     prisma.opportunity.findUnique({
       where: { id },
       include: {
-        lead: { select: { id: true, name: true, email: true, category: true, companyRef: { select: { id: true, name: true } } } },
+        lead: { select: { id: true, firstName: true, lastName: true, email: true, category: true, companyRef: { select: { id: true, name: true } } } },
         assignedTo: { select: { id: true, name: true } },
         notes: {
           orderBy: { createdAt: 'desc' },
@@ -79,7 +79,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
       ...(isAdmin && assignedToId !== undefined ? { assignedToId: assignedToId || null } : {}),
     },
     include: {
-      lead: { select: { id: true, name: true, email: true, category: true, companyRef: { select: { id: true, name: true } } } },
+      lead: { select: { id: true, firstName: true, lastName: true, email: true, category: true, companyRef: { select: { id: true, name: true } } } },
       assignedTo: { select: { id: true, name: true } },
       notes: {
         orderBy: { createdAt: 'desc' },

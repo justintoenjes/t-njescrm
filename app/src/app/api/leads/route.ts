@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
           templateId ? { opportunities: { some: { templateId } } } : {},
           search ? {
             OR: [
-              { name: { contains: search, mode: 'insensitive' } },
+              { firstName: { contains: search, mode: 'insensitive' } },
+              { lastName: { contains: search, mode: 'insensitive' } },
               { companyRef: { name: { contains: search, mode: 'insensitive' } } },
               { email: { contains: search, mode: 'insensitive' } },
             ],
@@ -98,12 +99,13 @@ export async function POST(request: NextRequest) {
 
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
-  const { name, companyId, email, phone, assignedToId, category } = body;
+  const { firstName, lastName, companyId, email, phone, assignedToId, category } = body;
   const isAdmin = session.user.role === 'ADMIN';
 
   const lead = await prisma.lead.create({
     data: {
-      name,
+      firstName: firstName ?? '',
+      lastName: lastName ?? '',
       companyId: companyId || null,
       email: email || null,
       phone: normalizePhone(phone) || null,

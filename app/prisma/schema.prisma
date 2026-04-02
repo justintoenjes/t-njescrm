@@ -44,7 +44,8 @@ model Company {
 
 model Lead {
   id               String        @id @default(cuid())
-  name             String
+  firstName        String        @default("")
+  lastName         String        @default("")
   companyId        String?
   companyRef       Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
   email            String?

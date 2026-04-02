@@ -171,6 +171,8 @@ export default function AdminPage() {
   const placeholderHint = (
     <p className="text-xs text-gray-400">
       Platzhalter: <code className="bg-gray-100 px-1 rounded">{'{{NAME}}'}</code>{' '}
+      <code className="bg-gray-100 px-1 rounded">{'{{VORNAME}}'}</code>{' '}
+      <code className="bg-gray-100 px-1 rounded">{'{{NACHNAME}}'}</code>{' '}
       <code className="bg-gray-100 px-1 rounded">{'{{JOBTITEL}}'}</code>{' '}
       <code className="bg-gray-100 px-1 rounded">{'{{FIRMA}}'}</code>{' '}
       <code className="bg-gray-100 px-1 rounded">{'{{BUCHUNGSLINK}}'}</code>

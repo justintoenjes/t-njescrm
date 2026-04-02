@@ -26,7 +26,8 @@ export async function POST(_: NextRequest, { params }: Ctx) {
     .map((n, i) => `[${i + 1}] ${new Date(n.createdAt).toLocaleDateString('de-DE')}: ${n.content}`)
     .join('\n');
 
-  const prompt = `Du bist ein CRM-Vertriebsassistent. Analysiere folgende Kontaktnotizen für den Lead "${lead.name}"${lead.companyRef?.name ? ` (${lead.companyRef.name})` : ''}.
+  const fullName = `${lead.firstName} ${lead.lastName}`.trim();
+  const prompt = `Du bist ein CRM-Vertriebsassistent. Analysiere folgende Kontaktnotizen für den Lead "${fullName}"${lead.companyRef?.name ? ` (${lead.companyRef.name})` : ''}.
 
 Notizen (Kontakthistorie):
 ${notesText}

@@ -15,7 +15,7 @@ export async function POST(_: NextRequest, { params }: Ctx) {
   const opp = await prisma.opportunity.findUnique({
     where: { id },
     include: {
-      lead: { select: { name: true, companyRef: { select: { id: true, name: true } } } },
+      lead: { select: { firstName: true, lastName: true, companyRef: { select: { id: true, name: true } } } },
       notes: { orderBy: { createdAt: 'asc' } },
     },
   });
@@ -29,7 +29,8 @@ export async function POST(_: NextRequest, { params }: Ctx) {
     .map((n, i) => `[${i + 1}] ${new Date(n.createdAt).toLocaleDateString('de-DE')}: ${n.content}`)
     .join('\n');
 
-  const prompt = `Du bist ein CRM-Vertriebsassistent. Analysiere folgende Deal-Notizen für die Opportunity "${opp.title}" mit ${opp.lead.name}${opp.lead.companyRef?.name ? ` (${opp.lead.companyRef.name})` : ''} (Stage: ${opp.stage}).
+  const fullName = `${opp.lead.firstName} ${opp.lead.lastName}`.trim();
+  const prompt = `Du bist ein CRM-Vertriebsassistent. Analysiere folgende Deal-Notizen für die Opportunity "${opp.title}" mit ${fullName}${opp.lead.companyRef?.name ? ` (${opp.lead.companyRef.name})` : ''} (Stage: ${opp.stage}).
 
 Notizen:
 ${notesText}

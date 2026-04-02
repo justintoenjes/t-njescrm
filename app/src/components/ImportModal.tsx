@@ -62,10 +62,10 @@ export default function ImportModal({ onClose, onImported }: Props) {
             Die CSV-Datei muss eine Kopfzeile mit folgenden Spalten enthalten:
           </p>
           <code className="block text-xs bg-gray-50 rounded p-2 text-gray-700">
-            name, company, email, phone
+            firstName, lastName, company, email, phone
           </code>
           <p className="text-xs text-gray-400">
-            Alle Felder außer name sind optional.
+            Alternativ: <code className="bg-gray-100 px-1 rounded">name</code> (wird automatisch in Vor-/Nachname gesplittet). Mindestens Vorname ist erforderlich.
           </p>
 
           <div

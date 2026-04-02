@@ -16,8 +16,8 @@ interface Task {
   dueDate: string | null;
   isCompleted: boolean;
   createdAt: string;
-  lead: { id: string; name: string; companyRef?: { id: string; name: string } | null } | null;
-  opportunity: { id: string; title: string; lead: { id: string; name: string } } | null;
+  lead: { id: string; firstName: string; lastName: string; companyRef?: { id: string; name: string } | null } | null;
+  opportunity: { id: string; title: string; lead: { id: string; firstName: string; lastName: string } } | null;
   assignedTo?: { id: string; name: string };
 }
 
@@ -70,12 +70,12 @@ function TaskRow({ task, onToggle, onOpenLead, onOpenOpp }: {
           {task.opportunity ? (
             <button onClick={() => onOpenOpp(task.opportunity!.id)}
               className="text-xs text-tc-blue hover:text-tc-dark hover:underline transition">
-              {task.opportunity.title} ({task.opportunity.lead.name})
+              {task.opportunity.title} ({`${task.opportunity.lead.firstName} ${task.opportunity.lead.lastName}`.trim()})
             </button>
           ) : task.lead ? (
             <button onClick={() => onOpenLead(task.lead!.id)}
               className="text-xs text-tc-blue hover:text-tc-dark hover:underline transition">
-              {task.lead.name}{task.lead.companyRef?.name ? ` · ${task.lead.companyRef.name}` : ''}
+              {`${task.lead.firstName} ${task.lead.lastName}`.trim()}{task.lead.companyRef?.name ? ` · ${task.lead.companyRef.name}` : ''}
             </button>
           ) : (
             <span className="text-xs text-gray-400">–</span>

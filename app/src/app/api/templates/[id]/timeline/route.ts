@@ -37,8 +37,8 @@ export async function GET(_: NextRequest, { params }: Ctx) {
       },
       include: {
         author: { select: { id: true, name: true } },
-        lead: { select: { id: true, name: true } },
-        opportunity: { select: { id: true, title: true, lead: { select: { id: true, name: true } } } },
+        lead: { select: { id: true, firstName: true, lastName: true } },
+        opportunity: { select: { id: true, title: true, lead: { select: { id: true, firstName: true, lastName: true } } } },
       },
       orderBy: { createdAt: 'desc' },
       take: 150,
@@ -46,7 +46,7 @@ export async function GET(_: NextRequest, { params }: Ctx) {
     prisma.email.findMany({
       where: { leadId: { in: leadIds } },
       include: {
-        lead: { select: { id: true, name: true } },
+        lead: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: { receivedAt: 'desc' },
       take: 100,
@@ -59,10 +59,10 @@ export async function GET(_: NextRequest, { params }: Ctx) {
     isAiGenerated: n.isAiGenerated,
     createdAt: n.createdAt.toISOString(),
     author: n.author,
-    contextLabel: n.opportunity?.lead?.name ?? n.lead?.name ?? null,
+    contextLabel: n.opportunity?.lead ? `${n.opportunity.lead.firstName} ${n.opportunity.lead.lastName}`.trim() : n.lead ? `${n.lead.firstName} ${n.lead.lastName}`.trim() : null,
     source: n.opportunityId
       ? { type: 'opportunity' as const, label: n.opportunity!.title, id: n.opportunityId }
-      : { type: 'lead' as const, label: n.lead?.name ?? 'Kontakt', id: n.leadId! },
+      : { type: 'lead' as const, label: n.lead ? `${n.lead.firstName} ${n.lead.lastName}`.trim() : 'Kontakt', id: n.leadId! },
   }));
 
   const mappedEmails = emails.map(e => ({
@@ -77,7 +77,7 @@ export async function GET(_: NextRequest, { params }: Ctx) {
     isRead: e.isRead,
     hasAttachments: e.hasAttachments,
     direction: e.direction as 'INBOUND' | 'OUTBOUND',
-    contextLabel: e.lead?.name ?? null,
+    contextLabel: e.lead ? `${e.lead.firstName} ${e.lead.lastName}`.trim() : null,
   }));
 
   return NextResponse.json({ notes: mappedNotes, emails: mappedEmails });

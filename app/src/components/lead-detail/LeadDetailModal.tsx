@@ -54,7 +54,7 @@ export default function LeadDetailModal({ lead, users, isAdmin, onClose, onUpdat
           {/* Header */}
           <div className="flex items-center justify-between px-4 lg:px-6 py-3 lg:py-4 border-b shrink-0">
             <div className="flex items-center gap-2 lg:gap-3 flex-wrap min-w-0">
-              <h2 className="text-base lg:text-lg font-bold truncate">{lead.name}</h2>
+              <h2 className="text-base lg:text-lg font-bold truncate">{`${lead.firstName} ${lead.lastName}`.trim()}</h2>
               {lead.scoreBreakdown ? (
                 <ScoreBreakdownPopover
                   score={lead.score}

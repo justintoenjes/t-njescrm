@@ -30,11 +30,11 @@ export async function GET(request: NextRequest) {
       ...categoryWhere,
     },
     include: {
-      lead: { select: { id: true, name: true, companyRef: { select: { id: true, name: true } } } },
+      lead: { select: { id: true, firstName: true, lastName: true, companyRef: { select: { id: true, name: true } } } },
       opportunity: {
         select: {
           id: true, title: true,
-          lead: { select: { id: true, name: true } },
+          lead: { select: { id: true, firstName: true, lastName: true } },
         },
       },
       assignedTo: { select: { id: true, name: true } },

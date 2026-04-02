@@ -27,12 +27,12 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     const lead = await prisma.lead.update({
       where: { id },
       data: { missedCallsCount: { increment: 1 } },
-      select: { missedCallsCount: true, noShowCount: true, name: true, assignedToId: true },
+      select: { missedCallsCount: true, noShowCount: true, firstName: true, lastName: true, assignedToId: true },
     });
     if (lead.assignedToId) {
       sendPushToUser(lead.assignedToId, {
         title: 'Verpasster Anruf',
-        body: `${lead.name} — ${lead.missedCallsCount}x nicht erreicht`,
+        body: `${`${lead.firstName} ${lead.lastName}`.trim()} — ${lead.missedCallsCount}x nicht erreicht`,
         url: '/',
         tag: `missed-call-${id}`,
       }).catch(() => {});
@@ -43,12 +43,12 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     const lead = await prisma.lead.update({
       where: { id },
       data: { noShowCount: { increment: 1 } },
-      select: { missedCallsCount: true, noShowCount: true, name: true, assignedToId: true },
+      select: { missedCallsCount: true, noShowCount: true, firstName: true, lastName: true, assignedToId: true },
     });
     if (lead.assignedToId) {
       sendPushToUser(lead.assignedToId, {
         title: 'No-Show',
-        body: `${lead.name} ist nicht erschienen (${lead.noShowCount}x)`,
+        body: `${`${lead.firstName} ${lead.lastName}`.trim()} ist nicht erschienen (${lead.noShowCount}x)`,
         url: '/',
         tag: `no-show-${id}`,
       }).catch(() => {});

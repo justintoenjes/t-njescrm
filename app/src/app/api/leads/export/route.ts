@@ -35,10 +35,10 @@ export async function GET(request: NextRequest) {
 
   const filtered = phaseFilter ? withPhase.filter(l => l.phase === phaseFilter) : withPhase;
 
-  const headers = ['id', 'name', 'company', 'email', 'phone', 'category', 'phase', 'archived', 'assignedTo', 'lastContactedAt', 'createdAt', 'notesCount', 'opportunitiesCount'];
+  const headers = ['id', 'firstName', 'lastName', 'company', 'email', 'phone', 'category', 'phase', 'archived', 'assignedTo', 'lastContactedAt', 'createdAt', 'notesCount', 'opportunitiesCount'];
 
   const rows = filtered.map(l => [
-    l.id, l.name, l.companyRef?.name ?? '', l.email ?? '', l.phone ?? '',
+    l.id, l.firstName, l.lastName, l.companyRef?.name ?? '', l.email ?? '', l.phone ?? '',
     l.category, l.phase, l.archived ? 'ja' : 'nein',
     l.assignedTo?.name ?? '',
     l.lastContactedAt ? l.lastContactedAt.toISOString() : '',

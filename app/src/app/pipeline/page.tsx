@@ -23,7 +23,7 @@ interface OppCard {
   stage: OpportunityStage;
   temperature: Temperature;
   value: number | null;
-  lead: { id: string; name: string; companyRef?: { id: string; name: string } | null };
+  lead: { id: string; firstName: string; lastName: string; companyRef?: { id: string; name: string } | null };
   assignedTo?: { id: string; name: string } | null;
 }
 
@@ -35,7 +35,7 @@ function CardContent({ opp, overlay = false }: { opp: OppCard; overlay?: boolean
         <div className="min-w-0 flex-1">
           <p className="font-medium text-sm text-gray-900 truncate">{opp.title}</p>
           <p className="text-xs text-gray-500 truncate">
-            {opp.lead.name}{opp.lead.companyRef?.name ? ` · ${opp.lead.companyRef.name}` : ''}
+            {`${opp.lead.firstName} ${opp.lead.lastName}`.trim()}{opp.lead.companyRef?.name ? ` · ${opp.lead.companyRef.name}` : ''}
           </p>
         </div>
         <span className={`text-xs px-1.5 py-0.5 rounded-full border shrink-0 ${TEMP_COLORS[opp.temperature]}`}>

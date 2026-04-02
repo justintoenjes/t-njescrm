@@ -29,7 +29,7 @@ export async function POST(_: NextRequest, { params }: Ctx) {
       include: {
         lead: {
           select: {
-            name: true, email: true, formalAddress: true, category: true,
+            firstName: true, lastName: true, email: true, formalAddress: true, category: true,
             companyRef: { select: { id: true, name: true } },
             emails: { orderBy: { receivedAt: 'desc' }, take: 10 },
           },
@@ -67,10 +67,11 @@ export async function POST(_: NextRequest, { params }: Ctx) {
   activities.sort((a, b) => b.date.getTime() - a.date.getTime());
   const recentActivities = activities.slice(0, 5);
 
+  const fullName = `${opp.lead.firstName} ${opp.lead.lastName}`.trim();
   const useFormal = opp.lead.formalAddress ?? (defaultFormal?.value === 'true');
   const addressStyle = useFormal
-    ? 'Verwende die formelle Anrede (Sie/Ihnen/Ihr). Sieze den Empfänger konsequent.'
-    : 'Verwende die informelle Anrede (du/dir/dein). Duze den Empfänger konsequent.';
+    ? `Verwende die formelle Anrede (Sie/Ihnen/Ihr). Sieze den Empfänger konsequent. Sprich den Kontakt mit Nachname an (z.B. "Herr/Frau ${opp.lead.lastName}").`
+    : `Verwende die informelle Anrede (du/dir/dein). Duze den Empfänger konsequent. Sprich den Kontakt mit Vorname an (z.B. "Hallo ${opp.lead.firstName}").`;
 
   const isRecruiting = opp.lead.category === 'RECRUITING';
   const contextType = isRecruiting
@@ -97,7 +98,7 @@ ${contextType}
 ${addressStyle}
 
 Opportunity: ${opp.title}
-Kontakt: ${opp.lead.name}${opp.lead.companyRef?.name ? ` (${opp.lead.companyRef.name})` : ''}
+Kontakt: ${fullName}${opp.lead.companyRef?.name ? ` (${opp.lead.companyRef.name})` : ''}
 ${opp.lead.email ? `E-Mail: ${opp.lead.email}` : ''}
 Stage: ${opp.stage}
 ${opp.value ? `Deal-Wert: ${opp.value.toLocaleString('de-DE')} €` : ''}
@@ -131,7 +132,9 @@ WICHTIG: Generiere KEINE Grußformel (kein "Mit freundlichen Grüßen", "Beste G
     if (subjectConfig?.value) {
       const firma = opp.lead.companyRef?.name || '';
       parsed.subject = subjectConfig.value
-        .replace(/\{\{NAME\}\}/g, opp.lead.name)
+        .replace(/\{\{NAME\}\}/g, fullName)
+        .replace(/\{\{VORNAME\}\}/g, opp.lead.firstName)
+        .replace(/\{\{NACHNAME\}\}/g, opp.lead.lastName)
         .replace(/\{\{JOBTITEL\}\}/g, opp.title)
         .replace(/\{\{FIRMA\}\}/g, firma);
     }

@@ -71,7 +71,8 @@ export async function POST(request: NextRequest) {
     },
     select: {
       id: true,
-      name: true,
+      firstName: true,
+      lastName: true,
       assignedToId: true,
       lastContactedAt: true,
     },
@@ -88,10 +89,10 @@ export async function POST(request: NextRequest) {
   let coldPushes = 0;
   for (const [userId, leads] of Array.from(coldByUser)) {
     const count = leads.length;
-    const firstName = leads[0].name;
+    const leadName = `${leads[0].firstName} ${leads[0].lastName}`.trim();
     await sendPushToUser(userId, {
       title: `${count} Lead${count > 1 ? 's' : ''} kalt`,
-      body: count === 1 ? `${firstName} — kein Kontakt seit ${daysCold}+ Tagen` : `${firstName} und ${count - 1} weitere`,
+      body: count === 1 ? `${leadName} — kein Kontakt seit ${daysCold}+ Tagen` : `${leadName} und ${count - 1} weitere`,
       url: '/',
       tag: 'leads-cold',
     }).catch(() => {});

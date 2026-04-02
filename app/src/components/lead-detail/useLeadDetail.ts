@@ -25,7 +25,8 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
 
   // Form state
   const [form, setForm] = useState({
-    name: lead.name,
+    firstName: lead.firstName,
+    lastName: lead.lastName,
     companyId: lead.companyId ?? '',
     companyName: lead.companyRef?.name ?? '',
     email: lead.email ?? '',
@@ -198,7 +199,8 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: form.name,
+        firstName: form.firstName,
+        lastName: form.lastName,
         companyId: form.companyId || null,
         email: form.email || null,
         phone: form.phone || null,
@@ -460,7 +462,7 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
   }
 
   async function deleteLead() {
-    if (!confirm(`Lead "${lead.name}" wirklich löschen?`)) return;
+    if (!confirm(`Lead "${`${lead.firstName} ${lead.lastName}`.trim()}" wirklich löschen?`)) return;
     await fetch(`/api/leads/${lead.id}`, { method: 'DELETE' });
     onDelete(lead.id);
     onClose();

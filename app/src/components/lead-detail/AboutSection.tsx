@@ -28,10 +28,18 @@ export default function AboutSection({ lead, isAdmin, users, state, collapsed, o
         <div className="px-4 pb-4 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-500 font-medium">Name</label>
+              <label className="text-xs text-gray-500 font-medium">Vorname</label>
               <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                value={form.firstName}
+                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 font-medium">Nachname</label>
+              <input
+                value={form.lastName}
+                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
                 className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
               />
             </div>

@@ -30,7 +30,7 @@ export type OpportunityFull = {
   score?: number;
   scoreBreakdown?: OppScoreBreakdown;
   leadId: string;
-  lead: { id: string; name: string; email?: string | null; category?: string; companyRef?: { id: string; name: string } | null };
+  lead: { id: string; firstName: string; lastName: string; email?: string | null; category?: string; companyRef?: { id: string; name: string } | null };
   assignedToId: string | null;
   assignedTo: { id: string; name: string } | null;
   notes: Note[];
@@ -121,7 +121,8 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
           const cfg = await cfgRes.json();
           if (cfg.screening_template) {
             const firma = data.lead.companyRef?.name || '';
-            const replace = (t: string) => t.replace(/\{\{NAME\}\}/g, data.lead.name).replace(/\{\{JOBTITEL\}\}/g, data.title).replace(/\{\{FIRMA\}\}/g, firma);
+            const leadFullName = `${data.lead.firstName} ${data.lead.lastName}`.trim();
+            const replace = (t: string) => t.replace(/\{\{NAME\}\}/g, leadFullName).replace(/\{\{VORNAME\}\}/g, data.lead.firstName).replace(/\{\{NACHNAME\}\}/g, data.lead.lastName).replace(/\{\{JOBTITEL\}\}/g, data.title).replace(/\{\{FIRMA\}\}/g, firma);
             setScreeningError('');
             setScreeningDraft({
               subject: replace(cfg.screening_subject_template || ''),
@@ -173,8 +174,11 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
     if (!cfgRes.ok) { doSave(); return; }
     const cfg = await cfgRes.json();
     const firma = opp.lead.companyRef?.name || '';
+    const oppLeadFullName = `${opp.lead.firstName} ${opp.lead.lastName}`.trim();
     const replacePlaceholders = (text: string) => text
-      .replace(/\{\{NAME\}\}/g, opp.lead.name)
+      .replace(/\{\{NAME\}\}/g, oppLeadFullName)
+      .replace(/\{\{VORNAME\}\}/g, opp.lead.firstName)
+      .replace(/\{\{NACHNAME\}\}/g, opp.lead.lastName)
       .replace(/\{\{JOBTITEL\}\}/g, opp.title)
       .replace(/\{\{FIRMA\}\}/g, firma)
       .replace(/\{\{BUCHUNGSLINK\}\}/g, cfg.interview_booking_link || '');
@@ -458,7 +462,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
               </button>
             )}
             <div className="min-w-0">
-              <p className="text-xs text-gray-400">{opp.lead.name}{opp.lead.companyRef?.name ? ` · ${opp.lead.companyRef.name}` : ''}</p>
+              <p className="text-xs text-gray-400">{`${opp.lead.firstName} ${opp.lead.lastName}`.trim()}{opp.lead.companyRef?.name ? ` · ${opp.lead.companyRef.name}` : ''}</p>
               <h2 className="text-base font-bold text-gray-900 truncate">{opp.title}</h2>
             </div>
             <span className={`text-xs font-medium px-2 py-1 rounded-full border shrink-0 ${stageColor}`}>

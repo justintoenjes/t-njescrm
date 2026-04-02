@@ -18,8 +18,8 @@ const TEMP_OPTIONS: (Temperature | '')[] = ['', 'hot', 'warm', 'cold'];
 type LeadRow = Omit<LeadFull, 'notes'> & { hasOverdueTasks: boolean };
 type UserOption = { id: string; name: string; email: string };
 
-type Duplicate = { id: string; name: string; matchedBy: string };
-const emptyForm = { name: '', companyId: '', companyName: '', email: '', phone: '', assignedToId: '', cvFile: null as File | null };
+type Duplicate = { id: string; firstName: string; lastName: string; matchedBy: string };
+const emptyForm = { firstName: '', lastName: '', companyId: '', companyName: '', email: '', phone: '', assignedToId: '', cvFile: null as File | null };
 
 export default function HomePage() {
   const router = useRouter();
@@ -142,7 +142,8 @@ export default function HomePage() {
   function selectEmailContact(contact: EmailContact) {
     setForm(prev => ({
       ...prev,
-      name: prev.name || contact.name,
+      firstName: prev.firstName || contact.name.split(' ').slice(0, -1).join(' ') || contact.name,
+      lastName: prev.lastName || (contact.name.includes(' ') ? contact.name.split(' ').pop()! : ''),
       email: contact.email,
     }));
     setEmailPickerOpen(false);
@@ -162,7 +163,8 @@ export default function HomePage() {
         setCvDebug(data._debug ?? null);
         setForm(prev => ({
           ...prev,
-          name: data.name || prev.name,
+          firstName: data.name ? (data.name.split(' ').slice(0, -1).join(' ') || data.name) : prev.firstName,
+          lastName: data.name && data.name.includes(' ') ? data.name.split(' ').pop()! : prev.lastName,
           email: data.email || prev.email,
           phone: data.phone || prev.phone,
         }));
@@ -172,13 +174,14 @@ export default function HomePage() {
   }
 
   async function createLead() {
-    if (!form.name) return;
+    if (!form.firstName && !form.lastName) return;
     setCreating(true);
     const res = await fetch('/api/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: form.name,
+        firstName: form.firstName,
+        lastName: form.lastName,
         companyId: form.companyId || null,
         email: form.email || null,
         phone: form.phone || null,
@@ -339,7 +342,7 @@ export default function HomePage() {
                       </td>
                       <td className="px-3 sm:px-5 py-3.5 font-medium text-gray-900">
                         <div className="flex items-center gap-1.5">
-                          <span className="truncate max-w-[120px] sm:max-w-none">{lead.name}</span>
+                          <span className="truncate max-w-[120px] sm:max-w-none">{`${lead.firstName} ${lead.lastName}`.trim()}</span>
                           {lead.hasOverdueTasks && (
                             <AlertCircle size={13} className="text-red-500 shrink-0" aria-label="Überfällige Aufgaben" />
                           )}
@@ -396,7 +399,7 @@ export default function HomePage() {
               >
                 <span className="flex items-center gap-2">
                   <Mail size={15} className="text-tc-blue shrink-0" />
-                  <span>{form.email ? `${form.name || 'Kontakt'} (${form.email})` : 'Aus E-Mail-Kontakt erstellen…'}</span>
+                  <span>{form.email ? `${`${form.firstName} ${form.lastName}`.trim() || 'Kontakt'} (${form.email})` : 'Aus E-Mail-Kontakt erstellen…'}</span>
                 </span>
                 {emailPickerOpen && <span className="text-gray-400 hover:text-red-500 text-xs">✕</span>}
               </button>
@@ -473,11 +476,18 @@ export default function HomePage() {
 
             <div className="grid grid-cols-2 gap-3">
               <input
-                placeholder="Name *"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Vorname *"
+                value={form.firstName}
+                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter') createLead(); }}
-                className="col-span-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+              />
+              <input
+                placeholder="Nachname"
+                value={form.lastName}
+                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') createLead(); }}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
               />
               {!isRecruiting && (
                 <CompanyPicker
@@ -522,7 +532,7 @@ export default function HomePage() {
                 {duplicates.map(d => (
                   <div key={d.id} className="flex items-center justify-between gap-2">
                     <span className="text-sm text-amber-700">
-                      <strong>{d.name}</strong> — gleiche {d.matchedBy === 'email' ? 'E-Mail' : 'Telefonnummer'}
+                      <strong>{`${d.firstName} ${d.lastName}`.trim()}</strong> — gleiche {d.matchedBy === 'email' ? 'E-Mail' : 'Telefonnummer'}
                     </span>
                     <button
                       type="button"
@@ -552,7 +562,7 @@ export default function HomePage() {
               </button>
               <button
                 onClick={createLead}
-                disabled={creating || !form.name}
+                disabled={creating || (!form.firstName && !form.lastName)}
                 className="bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50"
               >
                 {creating ? 'Erstellen…' : (duplicates.length > 0 ? 'Trotzdem erstellen' : 'Erstellen')}
