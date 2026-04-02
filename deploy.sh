@@ -8,6 +8,18 @@ set -e
 DEPLOY_LIB="$(cd "$(dirname "$0")/.." && pwd)/deploy-lib.sh"
 source "$DEPLOY_LIB"
 
+# ── Timing ──────────────────────────────────────────────────────────────────
+DEPLOY_START=$(date +%s)
+deploy_timer_start "$(dirname "$0")/.deploy-timing.log"
+
+step_timer() {
+  local now=$(date +%s)
+  local elapsed=$(( now - DEPLOY_START ))
+  local msg="$1"
+  deploy_timer "$msg"
+  printf "  ⏱  %3ds  %s\n" "$elapsed" "$msg"
+}
+
 # ── Konfiguration ───────────────────────────────────────────────────────────
 REMOTE="microcrm"
 REMOTE_USER="microcrm"
@@ -43,9 +55,10 @@ wait_for_service() {
 # ── Checks ──────────────────────────────────────────────────────────────────
 ensure_committed
 ensure_ssh "$SSH_CMD"
+step_timer "checks"
 
 # ── Sync App (direkt nach $APP_DIR, kein /tmp/ Umweg) ──────────────────────
-echo "==> Syncing files..."
+echo "==> Syncing app files..."
 rsync -az --checksum --delete \
   --exclude='node_modules' \
   --exclude='.next' \
@@ -53,35 +66,53 @@ rsync -az --checksum --delete \
   --rsync-path="sudo -u $REMOTE_USER rsync" \
   -e "$RSYNC_SSH" \
   "$LOCAL_APP/" "$REMOTE:$APP_DIR/"
+step_timer "sync app"
 
-# ── Sync Nginx Config ───────────────────────────────────────────────────────
-echo "==> Syncing nginx config..."
-scp "$(dirname "$0")/nginx.conf" "$REMOTE:/tmp/nginx.conf"
-ssh "$REMOTE" "sudo cp /tmp/nginx.conf /srv/microcrm/nginx.conf && rm /tmp/nginx.conf"
+# ── Sync Nginx + Certs + Callmonitor (parallel) ────────────────────────────
+echo "==> Syncing nginx, certs, callmonitor (parallel)..."
+SYNC_PIDS=()
 
-# ── Sync Certs ──────────────────────────────────────────────────────────────
-echo "==> Syncing certs (if present)..."
+# Nginx config
+(
+  scp "$(dirname "$0")/nginx.conf" "$REMOTE:/tmp/nginx.conf"
+  ssh "$REMOTE" "sudo cp /tmp/nginx.conf /srv/microcrm/nginx.conf && rm /tmp/nginx.conf"
+) &
+SYNC_PIDS+=($!)
+
+# Certs (if present)
 if [ -d "$(dirname "$0")/certs" ]; then
-  scp "$(dirname "$0")"/certs/*.pem "$REMOTE:/tmp/"
-  ssh "$REMOTE" "sudo mkdir -p /home/$REMOTE_USER/certs && sudo cp /tmp/cert.pem /tmp/key.pem /home/$REMOTE_USER/certs/ && sudo chown $REMOTE_USER:users /home/$REMOTE_USER/certs/cert.pem /home/$REMOTE_USER/certs/key.pem && sudo rm -f /tmp/cert.pem /tmp/key.pem"
+  (
+    scp "$(dirname "$0")"/certs/*.pem "$REMOTE:/tmp/"
+    ssh "$REMOTE" "sudo mkdir -p /home/$REMOTE_USER/certs && sudo cp /tmp/cert.pem /tmp/key.pem /home/$REMOTE_USER/certs/ && sudo chown $REMOTE_USER:users /home/$REMOTE_USER/certs/cert.pem /home/$REMOTE_USER/certs/key.pem && sudo rm -f /tmp/cert.pem /tmp/key.pem"
+  ) &
+  SYNC_PIDS+=($!)
 fi
 
-# ── Sync + Build Callmonitor (nur wenn geändert) ────────────────────────────
+# Callmonitor (nur wenn geändert)
 CALLMONITOR_HASH=$(find "$LOCAL_CALLMONITOR" -type f -exec md5 -q {} \; 2>/dev/null | sort | md5 -q)
 OLD_HASH=$(cat "$CALLMONITOR_HASH_FILE" 2>/dev/null || echo "")
 CALLMONITOR_CHANGED=false
 
 if [ "$CALLMONITOR_HASH" != "$OLD_HASH" ]; then
   CALLMONITOR_CHANGED=true
-  echo "==> Syncing callmonitor (geändert)..."
-  rsync -az --checksum --delete \
-    --rsync-path="sudo -u $REMOTE_USER rsync" \
-    -e "$RSYNC_SSH" \
-    "$LOCAL_CALLMONITOR/" "$REMOTE:/home/$REMOTE_USER/callmonitor/"
+  (
+    rsync -az --checksum --delete \
+      --rsync-path="sudo -u $REMOTE_USER rsync" \
+      -e "$RSYNC_SSH" \
+      "$LOCAL_CALLMONITOR/" "$REMOTE:/home/$REMOTE_USER/callmonitor/"
+  ) &
+  SYNC_PIDS+=($!)
   echo "$CALLMONITOR_HASH" > "$CALLMONITOR_HASH_FILE"
+  echo "  callmonitor: geändert, syncing"
 else
-  echo "==> Callmonitor unverändert, skip."
+  echo "  callmonitor: unverändert, skip"
 fi
+
+# Warte auf alle parallelen Syncs
+for pid in "${SYNC_PIDS[@]}"; do
+  wait "$pid" || { echo "✗ Ein Sync-Job ist fehlgeschlagen!"; exit 1; }
+done
+step_timer "sync nginx+certs+callmonitor"
 
 run_remote "mkdir -p /home/$REMOTE_USER/uploads"
 
@@ -102,17 +133,23 @@ ENVEOF
 else
   echo "  ✓ Already configured"
 fi
+step_timer "env check"
 
 # ── Build ────────────────────────────────────────────────────────────────────
 echo "==> Building app image..."
 run_remote "podman build --security-opt label=disable -t $IMAGE $APP_DIR/"
+step_timer "build app"
 
 if [ "$CALLMONITOR_CHANGED" = true ]; then
   echo "==> Building callmonitor image..."
   run_remote "podman build --security-opt label=disable -t microcrm-callmonitor /home/$REMOTE_USER/callmonitor/"
+  step_timer "build callmonitor"
+else
+  echo "==> Callmonitor build: skip (unverändert)"
 fi
 
 # ── Restart Services (parallel wo möglich) ───────────────────────────────────
+echo "==> Restarting services..."
 remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-app.service"
 
 # Callmonitor + Proxy parallel starten (unabhängig von App)
@@ -124,13 +161,16 @@ remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-proxy.service" &
 PROXY_PID=$!
 
 wait_for_service "microcrm-app.service" 30
+step_timer "restart app"
 
 if [ "$CALLMONITOR_CHANGED" = true ]; then
   wait $CM_PID
   wait_for_service "microcrm-callmonitor.service" 20
+  step_timer "restart callmonitor"
 fi
 wait $PROXY_PID
 wait_for_service "microcrm-proxy.service" 15
+step_timer "restart proxy"
 
 # ── Health Check ─────────────────────────────────────────────────────────────
 echo "==> Health-Check..."
@@ -141,5 +181,8 @@ else
   ssh "$REMOTE" "sudo -u $REMOTE_USER -i bash -c 'XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user status microcrm-app.service microcrm-proxy.service --no-pager -l'" 2>&1 | tail -30
   exit 1
 fi
+step_timer "health check"
 
-echo "==> Deploy complete!"
+TOTAL=$(( $(date +%s) - DEPLOY_START ))
+echo ""
+echo "==> Deploy complete! (${TOTAL}s total)"

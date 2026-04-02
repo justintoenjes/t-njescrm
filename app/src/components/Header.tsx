@@ -23,40 +23,42 @@ export default function Header() {
   const { category, setCategory } = useCategory();
 
   return (
-    <header className="bg-tc-dark sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
-      <div className="max-w-7xl mx-auto px-4 flex items-center h-14 gap-6">
+    <header className="bg-tc-dark sticky top-0 z-30 pt-[env(safe-area-inset-top)] max-w-[100vw]">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 flex items-center h-14 gap-2 sm:gap-6 overflow-x-auto scrollbar-hide">
         <Link href="/" className="shrink-0 flex items-end gap-2">
           <img src="/logo-white.svg" alt="Tönjes Consulting" className="h-8 w-auto" />
-          <span className="text-white font-light text-2xl tracking-wide font-sans leading-none">CRM</span>
+          <span className="text-white font-light text-2xl tracking-wide font-sans leading-none hidden sm:block">CRM</span>
         </Link>
 
         {/* Category Toggle */}
-        <div className="flex items-center bg-white/10 rounded-lg p-0.5">
+        <div className="flex items-center bg-white/10 rounded-lg p-0.5 shrink-0">
           <button
             onClick={() => setCategory('VERTRIEB')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all
+            className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap
               ${category === 'VERTRIEB'
                 ? 'bg-tc-blue text-tc-dark shadow-sm'
                 : 'text-white/60 hover:text-white/90'
               }`}
           >
             <Briefcase size={13} />
-            Vertrieb
+            <span className="hidden sm:inline">Vertrieb</span>
+            <span className="sm:hidden">V</span>
           </button>
           <button
             onClick={() => setCategory('RECRUITING')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all
+            className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap
               ${category === 'RECRUITING'
                 ? 'bg-tc-blue text-tc-dark shadow-sm'
                 : 'text-white/60 hover:text-white/90'
               }`}
           >
             <UserSearch size={13} />
-            Recruiting
+            <span className="hidden sm:inline">Recruiting</span>
+            <span className="sm:hidden">R</span>
           </button>
         </div>
 
-        <nav className="flex items-center gap-1 flex-1">
+        <nav className="flex items-center gap-1 flex-1 min-w-0">
           {NAV_ITEMS.filter(item => !item.vertriebOnly || category === 'VERTRIEB').map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             const displayLabel = typeof label === 'function' ? label(category) : label;
@@ -64,14 +66,14 @@ export default function Header() {
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap shrink-0
                   ${active
                     ? 'bg-tc-blue/20 text-tc-blue'
                     : 'text-white/60 hover:bg-white/10 hover:text-white/90'
                   }`}
               >
                 <Icon size={15} />
-                {displayLabel}
+                <span className="hidden md:inline">{displayLabel}</span>
               </Link>
             );
           })}
@@ -79,19 +81,19 @@ export default function Header() {
           {session?.user.role === 'ADMIN' && (
             <Link
               href="/admin"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ml-auto
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors ml-auto whitespace-nowrap shrink-0
                 ${pathname.startsWith('/admin')
                   ? 'bg-tc-blue/20 text-tc-blue'
                   : 'text-white/60 hover:bg-white/10 hover:text-white/90'
                 }`}
             >
               <Shield size={15} />
-              Admin
+              <span className="hidden md:inline">Admin</span>
             </Link>
           )}
         </nav>
 
-        <div className="flex items-center gap-3 ml-auto">
+        <div className="flex items-center gap-2 sm:gap-3 ml-auto shrink-0">
           <Link
             href="/settings"
             className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm font-medium transition-colors

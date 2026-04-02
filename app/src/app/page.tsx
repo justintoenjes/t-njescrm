@@ -219,27 +219,27 @@ export default function HomePage() {
   const isRecruiting = category === 'RECRUITING';
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 max-w-[100vw] overflow-x-hidden">
       <Header />
 
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-4">
+      <main className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-4">
         {/* Toolbar */}
-        <div className="flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex flex-wrap gap-2 flex-1">
-            <div className="relative">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-center justify-between">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 flex-1 min-w-0">
+            <div className="relative col-span-2">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Suche…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue w-52"
+                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue w-full sm:w-52"
               />
             </div>
             <select
               value={phaseFilter}
               onChange={(e) => setPhaseFilter(e.target.value as LeadPhase | '')}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue min-w-0"
             >
               <option value="">Alle Phasen</option>
               {PHASE_OPTIONS.map((p) => (
@@ -249,17 +249,17 @@ export default function HomePage() {
             <select
               value={tempFilter}
               onChange={(e) => setTempFilter(e.target.value as Temperature | '')}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue min-w-0"
             >
               {TEMP_OPTIONS.map((t) => (
-                <option key={t} value={t}>{t ? TEMP_LABELS[t] : 'Alle Temperaturen'}</option>
+                <option key={t} value={t}>{t ? TEMP_LABELS[t] : 'Alle Temp.'}</option>
               ))}
             </select>
             {groupOptions.length > 0 && (
               <select
                 value={groupFilter}
                 onChange={(e) => setGroupFilter(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue col-span-2 sm:col-span-1 min-w-0"
               >
                 <option value="">{category === 'RECRUITING' ? 'Alle Stellen' : 'Alle Firmen'}</option>
                 {groupOptions.map((g) => (
@@ -273,103 +273,105 @@ export default function HomePage() {
               onClick={() => setShowImport(true)}
               className="flex items-center gap-1.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium px-3 py-2 rounded-lg transition"
             >
-              <Upload size={15} /> Import
+              <Upload size={15} /> <span className="hidden sm:inline">Import</span>
             </button>
             <button
               onClick={handleExport}
               className="flex items-center gap-1.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium px-3 py-2 rounded-lg transition"
             >
-              <Download size={15} /> Export
+              <Download size={15} /> <span className="hidden sm:inline">Export</span>
             </button>
             <button
               onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+              className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg transition ml-auto"
             >
-              <Plus size={16} /> {isRecruiting ? 'Neuer Kandidat' : 'Neuer Lead'}
+              <Plus size={16} /> <span className="hidden sm:inline">{isRecruiting ? 'Neuer Kandidat' : 'Neuer Lead'}</span><span className="sm:hidden">Neu</span>
             </button>
           </div>
         </div>
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                <th className="px-5 py-3">Score</th>
-                <th className="px-5 py-3">Name</th>
-                {!isRecruiting && <th className="px-5 py-3">Firma</th>}
-                <th className="px-5 py-3">Phase</th>
-                <th className="px-5 py-3">Opportunities</th>
-                <th className="px-5 py-3">Letzter Kontakt</th>
-                {isAdmin && <th className="px-5 py-3">Zugewiesen</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr><td colSpan={(isAdmin ? 7 : 6) - (isRecruiting ? 1 : 0)} className="text-center py-12 text-gray-400">Laden…</td></tr>
-              )}
-              {!loading && leads.length === 0 && (
-                <tr><td colSpan={(isAdmin ? 7 : 6) - (isRecruiting ? 1 : 0)} className="text-center py-12 text-gray-400">Keine Leads gefunden</td></tr>
-              )}
-              {leads.map((lead) => {
-                const activeOppCount = lead.opportunities?.filter(o => o.stage !== 'WON' && o.stage !== 'LOST').length ?? 0;
-                return (
-                  <tr
-                    key={lead.id}
-                    onClick={() => !loadingLead && openLead(lead)}
-                    className={`border-b border-gray-100 hover:bg-tc-blue/10 cursor-pointer transition ${loadingLead === lead.id ? 'opacity-60' : ''}`}
-                  >
-                    <td className="px-5 py-3.5">
-                      {lead.scoreBreakdown ? (
-                        <ScoreBreakdownPopover
-                          score={lead.score}
-                          breakdown={lead.scoreBreakdown}
-                          colorClass={TEMP_COLORS[lead.temperature]}
-                        >
-                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${TEMP_COLORS[lead.temperature]} hover:ring-2 hover:ring-tc-blue/50 transition`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-0">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="px-3 sm:px-5 py-3">Score</th>
+                  <th className="px-3 sm:px-5 py-3">Name</th>
+                  {!isRecruiting && <th className="px-3 sm:px-5 py-3 hidden sm:table-cell">Firma</th>}
+                  <th className="px-3 sm:px-5 py-3">Phase</th>
+                  <th className="px-3 sm:px-5 py-3 hidden md:table-cell">Opportunities</th>
+                  <th className="px-3 sm:px-5 py-3 hidden md:table-cell">Letzter Kontakt</th>
+                  {isAdmin && <th className="px-3 sm:px-5 py-3 hidden lg:table-cell">Zugewiesen</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr><td colSpan={(isAdmin ? 7 : 6) - (isRecruiting ? 1 : 0)} className="text-center py-12 text-gray-400">Laden…</td></tr>
+                )}
+                {!loading && leads.length === 0 && (
+                  <tr><td colSpan={(isAdmin ? 7 : 6) - (isRecruiting ? 1 : 0)} className="text-center py-12 text-gray-400">Keine Leads gefunden</td></tr>
+                )}
+                {leads.map((lead) => {
+                  const activeOppCount = lead.opportunities?.filter(o => o.stage !== 'WON' && o.stage !== 'LOST').length ?? 0;
+                  return (
+                    <tr
+                      key={lead.id}
+                      onClick={() => !loadingLead && openLead(lead)}
+                      className={`border-b border-gray-100 hover:bg-tc-blue/10 cursor-pointer transition ${loadingLead === lead.id ? 'opacity-60' : ''}`}
+                    >
+                      <td className="px-3 sm:px-5 py-3.5">
+                        {lead.scoreBreakdown ? (
+                          <ScoreBreakdownPopover
+                            score={lead.score}
+                            breakdown={lead.scoreBreakdown}
+                            colorClass={TEMP_COLORS[lead.temperature]}
+                          >
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${TEMP_COLORS[lead.temperature]} hover:ring-2 hover:ring-tc-blue/50 transition`}>
+                              {lead.score}
+                            </span>
+                          </ScoreBreakdownPopover>
+                        ) : (
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${TEMP_COLORS[lead.temperature]}`}>
                             {lead.score}
                           </span>
-                        </ScoreBreakdownPopover>
-                      ) : (
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${TEMP_COLORS[lead.temperature]}`}>
-                          {lead.score}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 font-medium text-gray-900">
-                      <div className="flex items-center gap-1.5">
-                        {lead.name}
-                        {lead.hasOverdueTasks && (
-                          <AlertCircle size={13} className="text-red-500 shrink-0" aria-label="Überfällige Aufgaben" />
                         )}
-                      </div>
-                    </td>
-                    {!isRecruiting && <td className="px-5 py-3.5 text-gray-500">{lead.companyRef?.name ?? '–'}</td>}
-                    <td className="px-5 py-3.5">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${PHASE_COLORS[lead.phase] ?? ''}`}>
-                        {PHASE_LABELS[lead.phase] ?? lead.phase}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      {activeOppCount > 0 ? (
-                        <span className="flex items-center gap-1 text-xs text-teal-700">
-                          <Briefcase size={12} /> {activeOppCount} aktiv
+                      </td>
+                      <td className="px-3 sm:px-5 py-3.5 font-medium text-gray-900">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate max-w-[120px] sm:max-w-none">{lead.name}</span>
+                          {lead.hasOverdueTasks && (
+                            <AlertCircle size={13} className="text-red-500 shrink-0" aria-label="Überfällige Aufgaben" />
+                          )}
+                        </div>
+                      </td>
+                      {!isRecruiting && <td className="px-3 sm:px-5 py-3.5 text-gray-500 hidden sm:table-cell">{lead.companyRef?.name ?? '–'}</td>}
+                      <td className="px-3 sm:px-5 py-3.5">
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${PHASE_COLORS[lead.phase] ?? ''}`}>
+                          {PHASE_LABELS[lead.phase] ?? lead.phase}
                         </span>
-                      ) : (
-                        <span className="text-xs text-gray-300">–</span>
+                      </td>
+                      <td className="px-3 sm:px-5 py-3.5 hidden md:table-cell">
+                        {activeOppCount > 0 ? (
+                          <span className="flex items-center gap-1 text-xs text-teal-700">
+                            <Briefcase size={12} /> {activeOppCount} aktiv
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">–</span>
+                        )}
+                      </td>
+                      <td className="px-3 sm:px-5 py-3.5 text-gray-500 hidden md:table-cell">{formatDate(lead.lastContactedAt)}</td>
+                      {isAdmin && (
+                        <td className="px-3 sm:px-5 py-3.5 text-gray-500 hidden lg:table-cell">{lead.assignedTo?.name ?? '–'}</td>
                       )}
-                    </td>
-                    <td className="px-5 py-3.5 text-gray-500">{formatDate(lead.lastContactedAt)}</td>
-                    {isAdmin && (
-                      <td className="px-5 py-3.5 text-gray-500">{lead.assignedTo?.name ?? '–'}</td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           {!loading && (
-            <div className="px-5 py-2 border-t border-gray-100 text-xs text-gray-400">
+            <div className="px-3 sm:px-5 py-2 border-t border-gray-100 text-xs text-gray-400">
               {leads.length} {isRecruiting ? 'Kandidat' : 'Lead'}{leads.length !== 1 ? 'en' : ''}
             </div>
           )}
