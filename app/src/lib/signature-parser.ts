@@ -34,8 +34,8 @@ const PHONE_PATTERNS = [
 ];
 
 // German legal form suffixes for company detection
-// Require at least one proper word (3+ chars) before the suffix to avoid false positives like "se", "kg"
-const COMPANY_PATTERN = /(?:[\w\u00C0-\u024F&.\-]{3,}[\w\u00C0-\u024F&.\-\s]{0,37}\s+)(?:GmbH\s*&\s*Co\.?\s*KG(?:aA)?|GmbH|mbH|AG|KG(?:aA)?|e\.?\s?K\.|GbR|OHG|UG|SE|Inc\.|Ltd\.?|LLC|S\.?A\.?)\b/gi;
+// Require a proper company name (word with 3+ chars) immediately before the suffix
+const COMPANY_PATTERN = /\b([\w\u00C0-\u024F][\w\u00C0-\u024F&.\-\s]{2,38})\s+(GmbH\s*&\s*Co\.?\s*KG(?:aA)?|GmbH|mbH|e\.?\s?K\.|Inc\.|Ltd\.?|LLC)\b|\b([\w\u00C0-\u024F][\w\u00C0-\u024F&.\-\s]{4,38})\s+(AG|KG(?:aA)?|GbR|OHG|UG|SE|S\.?A\.?)\b/gi;
 
 // Job title patterns (German + English)
 const TITLE_PATTERNS = [
@@ -119,10 +119,16 @@ function extractPhone(text: string): string | null {
  * Extract a company name from text.
  */
 function extractCompany(text: string): string | null {
-  const matches = text.match(COMPANY_PATTERN);
-  if (!matches || matches.length === 0) return null;
-  // Return the first match, cleaned up
-  return matches[0].trim().replace(/\s+/g, ' ');
+  // Use exec loop since the regex has alternation with groups
+  COMPANY_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = COMPANY_PATTERN.exec(text)) !== null) {
+    const full = match[0].trim().replace(/\s+/g, ' ');
+    // Skip very short matches (likely false positives)
+    if (full.length < 5) continue;
+    return full;
+  }
+  return null;
 }
 
 /**

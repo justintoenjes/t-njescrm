@@ -27,49 +27,66 @@ type SearchRequest = {
   cursor?: string;
 };
 
-const OFFER_KEYWORDS = 'Angebot OR Kostenvoranschlag OR Offerte OR Proposal OR Preisangebot OR Auftragsbestätigung OR Angebotserstellung';
+const OFFER_TERMS = /angebot|kostenvoranschlag|offerte|proposal|preisangebot|auftragsbestätigung|angebotserstellung/i;
 
-// Filter out automated/newsletter senders
+// ── Newsletter / Automated sender detection ──
+
 const NOREPLY_PATTERNS = [
-  /^no-?reply@/i,
-  /^noreply@/i,
-  /^newsletter@/i,
-  /^news@/i,
-  /^info@/i,
-  /^service@/i,
-  /^support@/i,
-  /^mailer-daemon@/i,
-  /^postmaster@/i,
-  /^notifications?@/i,
-  /^alert@/i,
-  /^donotreply@/i,
-  /^guthaben@/i,
-  /^keineantwort/i,
-  /^groups-noreply@/i,
-  /^bounce/i,
-  /^marketing@/i,
-  /^team@/i,
-  /^hello@/i,
-  /^training\./i,
+  /^no-?reply/i, /^noreply/i, /^donotreply/i, /^bounce/i,
+  /^newsletter/i, /^news@/i, /^digest/i,
+  /^info@/i, /^service@/i, /^support@/i, /^office@/i,
+  /^hello@/i, /^team@/i, /^marketing@/i, /^sales@/i,
+  /^academy@/i, /^training[.@]/i, /^webinar/i,
+  /^mailer-daemon/i, /^postmaster/i,
+  /^notifications?@/i, /^alert/i, /^updates?@/i,
+  /^guthaben@/i, /^keineantwort/i,
+  /^groups-/i, /^mailrobot/i, /^robot@/i, /^automat/i,
+  /^billing@/i, /^invoice@/i, /^rechnung@/i,
+  /^careers@/i, /^jobs@/i, /^recruiting@/i,
 ];
 
 const NEWSLETTER_DOMAINS = [
-  'linkedin.com', 'facebook.com', 'twitter.com', 'x.com',
+  // Social / Big Tech
+  'linkedin.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com',
   'google.com', 'youtube.com', 'apple.com', 'microsoft.com',
+  // E-Commerce / Services
   'amazon.com', 'amazon.de', 'paypal.com', 'ebay.de', 'ebay.com',
-  'xing.com', 'github.com', 'notion.so', 'slack.com',
   'check24.de', 'klarmobil.de', 'spendit.de',
+  // Job portals / Recruiting platforms
+  'xing.com', 'stepstone.de', 'indeed.com', 'monster.de',
+  'freelancermap.de', 'gulp.de', 'randstad.de',
+  // Dev / SaaS
+  'github.com', 'notion.so', 'slack.com', 'atlassian.com',
+  'figma.com', 'canva.com', 'zoom.us', 'dropbox.com',
 ];
 
 function isAutomatedSender(email: string): boolean {
   const lower = email.toLowerCase();
-  if (NOREPLY_PATTERNS.some(p => p.test(lower))) return true;
+  const localPart = lower.split('@')[0] ?? '';
   const domain = lower.split('@')[1] ?? '';
+
+  // Check local part patterns
+  if (NOREPLY_PATTERNS.some(p => p.test(localPart))) return true;
+
+  // Check domain exact match
   if (NEWSLETTER_DOMAINS.includes(domain)) return true;
-  // Subdomains of newsletter domains (e.g. newsletter.elv.com, my.check24.de)
+
+  // Check subdomains (e.g. mail.xing.com, news.evergabe.de, recruiting.stepstone.de)
   if (NEWSLETTER_DOMAINS.some(d => domain.endsWith('.' + d))) return true;
+
+  // Heuristic: subdomain patterns that indicate automated mail
+  const subParts = domain.split('.');
+  if (subParts.length >= 3) {
+    const sub = subParts[0];
+    if (/^(mail|news|newsletter|marketing|noreply|notify|updates|campaigns|mailer|bulk|promo)$/.test(sub)) {
+      return true;
+    }
+  }
+
   return false;
 }
+
+// ── Main handler ──
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -92,16 +109,16 @@ export async function POST(request: NextRequest) {
     let graphUrl: string;
 
     if (cursor) {
-      // Validate cursor URL
       if (!cursor.startsWith('https://graph.microsoft.com/')) {
         return NextResponse.json({ error: 'Ungültiger Cursor' }, { status: 400 });
       }
       graphUrl = cursor;
     } else {
-      graphUrl = buildGraphUrl(mode, dateFrom, dateTo);
+      // ALWAYS use $filter for dates (works reliably), never $search
+      // For offers/both: keyword matching is done server-side on subject+bodyPreview
+      graphUrl = buildGraphUrl(dateFrom, dateTo);
     }
 
-    // Fetch messages from Graph
     const res = await fetch(graphUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -123,40 +140,41 @@ export async function POST(request: NextRequest) {
     const messages: any[] = data.value ?? [];
     const nextCursor: string | null = data['@odata.nextLink'] ?? null;
 
-    // Filter external senders + exclude newsletters/automated
+    // Filter: external senders only, no newsletters
     const externalMessages = messages.filter((msg: any) => {
       const fromEmail = msg.from?.emailAddress?.address?.toLowerCase() ?? '';
       if (!fromEmail || fromEmail === ownEmail) return false;
       if (ownDomain && fromEmail.endsWith(`@${ownDomain}`)) return false;
       if (isAutomatedSender(fromEmail)) return false;
-
-      // Server-side date filter (Graph $search ignores KQL dates)
-      if (dateFrom || dateTo) {
-        const msgDate = msg.receivedDateTime ? msg.receivedDateTime.substring(0, 10) : '';
-        if (dateFrom && msgDate < dateFrom) return false;
-        if (dateTo && msgDate > dateTo) return false;
-      }
-
       return true;
     });
 
+    // For offers/both mode: also filter to only emails mentioning offer terms
+    const relevantMessages = (mode === 'offers' || mode === 'both')
+      ? externalMessages.filter((msg: any) => {
+          const subject = msg.subject ?? '';
+          const preview = msg.bodyPreview ?? '';
+          return OFFER_TERMS.test(subject) || OFFER_TERMS.test(preview);
+        })
+      : externalMessages;
+
     // Fetch full bodies via $batch for signature parsing
-    const needBodies = mode !== 'offers'; // signatures or both
+    const needBodies = mode !== 'offers';
     let bodiesMap: Map<string, string> = new Map();
 
-    if (needBodies && externalMessages.length > 0) {
-      bodiesMap = await fetchBodies(externalMessages.map((m: any) => m.id), accessToken);
+    if (needBodies && relevantMessages.length > 0) {
+      bodiesMap = await fetchBodies(relevantMessages.map((m: any) => m.id), accessToken);
     }
 
     // Extract contacts
     const contactMap = new Map<string, ScannedContact>();
 
-    for (const msg of externalMessages) {
+    for (const msg of relevantMessages) {
       const fromAddr = msg.from?.emailAddress?.address ?? '';
       const fromName = msg.from?.emailAddress?.name ?? fromAddr.split('@')[0];
       const email = fromAddr.toLowerCase();
 
-      if (contactMap.has(email)) continue; // already found
+      if (contactMap.has(email)) continue;
 
       const { firstName, lastName } = splitName(fromName);
       const subject = msg.subject ?? '';
@@ -168,33 +186,35 @@ export async function POST(request: NextRequest) {
       let confidence = 0;
       let source: 'signature' | 'offer' = 'signature';
 
-      if (mode === 'offers') {
-        // Offer mode: we know it's an offer email, use bodyPreview for basic info
-        source = 'offer';
-        confidence = 0.4; // offer keyword match gives base confidence
-        const preview = msg.bodyPreview ?? '';
-        const sig = parseSignature(preview);
-        phone = sig.phone;
-        company = sig.company;
-        title = sig.title;
-        confidence += sig.confidence * 0.6;
-      } else {
-        // Signature mode or both: parse full body
-        const htmlBody = bodiesMap.get(msg.id) ?? msg.bodyPreview ?? '';
-        const sig = parseSignature(htmlBody);
-        phone = sig.phone;
-        company = sig.company;
-        title = sig.title;
-        confidence = sig.confidence;
+      // Parse signature from body
+      const htmlBody = bodiesMap.get(msg.id) ?? msg.bodyPreview ?? '';
+      const sig = parseSignature(htmlBody);
+      phone = sig.phone;
+      company = sig.company;
+      title = sig.title;
+      confidence = sig.confidence;
 
-        // In "both" mode, boost confidence if subject matches offer keywords
-        if (mode === 'both' && isOfferSubject(subject)) {
-          source = 'offer';
-          confidence = Math.min(1, confidence + 0.2);
+      // Filter out own company from parsed results
+      if (company && ownDomain) {
+        const ownCompanyHint = ownDomain.split('.')[0]; // e.g. "toenjes-consulting" from domain
+        if (company.toLowerCase().includes(ownCompanyHint.toLowerCase()) && ownCompanyHint.length >= 4) {
+          company = null;
+          title = null; // likely also from own signature
+          confidence = Math.max(0, confidence - 0.35);
         }
       }
 
-      // Only include contacts with sufficient confidence
+      // Boost confidence for offer matches
+      if (mode === 'offers' || mode === 'both') {
+        if (OFFER_TERMS.test(subject)) {
+          source = 'offer';
+          confidence = Math.min(1, confidence + 0.3);
+        } else if (OFFER_TERMS.test(msg.bodyPreview ?? '')) {
+          source = 'offer';
+          confidence = Math.min(1, confidence + 0.15);
+        }
+      }
+
       if (confidence < 0.3) continue;
 
       contactMap.set(email, {
@@ -229,7 +249,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Sort by confidence desc
     const contacts = Array.from(contactMap.values())
       .sort((a, b) => b.confidence - a.confidence);
 
@@ -244,22 +263,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function buildGraphUrl(mode: string, dateFrom?: string, dateTo?: string): string {
+/**
+ * Build Graph URL — always uses $filter + $orderby (no $search).
+ * Keyword matching for offers is done server-side.
+ */
+function buildGraphUrl(dateFrom?: string, dateTo?: string): string {
   const select = '$select=id,subject,from,receivedDateTime,bodyPreview';
-  const top = '$top=50';
-
-  const useSearch = mode === 'offers' || mode === 'both';
-
-  if (useSearch) {
-    // When using $search, $orderby and $filter are NOT allowed.
-    // Date filtering is done server-side after fetching results.
-    const search = `$search="${OFFER_KEYWORDS}"`;
-    const params = [select, top, search].filter(Boolean).join('&');
-    return `https://graph.microsoft.com/v1.0/me/messages?${params}`;
-  }
-
-  // Signatures mode: no $search, so $orderby and $filter work fine
+  const top = '$top=100'; // fetch more since we filter server-side
   const order = '$orderby=receivedDateTime desc';
+
   const filters: string[] = [];
   if (dateFrom) filters.push(`receivedDateTime ge ${dateFrom}T00:00:00Z`);
   if (dateTo) filters.push(`receivedDateTime le ${dateTo}T23:59:59Z`);
@@ -269,13 +281,8 @@ function buildGraphUrl(mode: string, dateFrom?: string, dateTo?: string): string
   return `https://graph.microsoft.com/v1.0/me/messages?${params}`;
 }
 
-function isOfferSubject(subject: string): boolean {
-  return /angebot|kostenvoranschlag|offerte|proposal|preisangebot|auftragsbestätigung/i.test(subject);
-}
-
 /**
  * Fetch full email bodies via Graph $batch API.
- * Returns a map of messageId → body HTML content.
  */
 async function fetchBodies(messageIds: string[], accessToken: string): Promise<Map<string, string>> {
   const bodiesMap = new Map<string, string>();
