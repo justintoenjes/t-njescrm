@@ -11,6 +11,13 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // RBAC: Only admin or assigned user can add notes
+  const lead = await prisma.lead.findUnique({ where: { id }, select: { assignedToId: true } });
+  if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (session.user.role !== 'ADMIN' && lead.assignedToId !== session.user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
   const { content, contactMade } = body;

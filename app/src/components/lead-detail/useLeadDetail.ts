@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { ACTIVE_STAGES } from '@/lib/opportunity';
+import { usePush } from '@/components/PushNotificationInit';
 import type {
   LeadFull, NoteData, OpportunityPreview, AttachmentData, Task,
   FollowUp, AISummary, PersistedEmail, EnrichedNote, Activity,
@@ -20,6 +21,7 @@ const CALL_PATTERN = /^(Eingehender|Ausgehender) Anruf/;
 
 export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
   const { data: session } = useSession();
+  const { requestAndSubscribe } = usePush();
 
   // Form state
   const [form, setForm] = useState({
@@ -222,26 +224,32 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
   async function addNote() {
     if (!noteText.trim()) return;
     setAddingNote(true);
-    const res = await fetch(`/api/leads/${lead.id}/notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: noteText.trim(), contactMade }),
-    });
-    const note = await res.json();
-    const currentUser = session?.user ? { id: session.user.id, name: session.user.name ?? '' } : null;
-    const newNotes = [{ ...note, author: note.author ?? currentUser }, ...leadNotes];
-    setLeadNotes(newNotes);
-    setNoteText('');
-    setContactMade(false);
-    setAddingNote(false);
-    if (contactMade) {
-      setMissedCallsCount(0);
-      setNoShowCount(0);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: noteText.trim(), contactMade }),
+      });
+      if (!res.ok) return;
+      const note = await res.json();
+      const currentUser = session?.user ? { id: session.user.id, name: session.user.name ?? '' } : null;
+      const newNotes = [{ ...note, author: note.author ?? currentUser }, ...leadNotes];
+      setLeadNotes(newNotes);
+      setNoteText('');
+      setContactMade(false);
+      if (contactMade) {
+        setMissedCallsCount(0);
+        setNoShowCount(0);
+      }
+      const leadRes = await fetch(`/api/leads/${lead.id}`);
+      if (leadRes.ok) {
+        const updatedLead: LeadFull = await leadRes.json();
+        setOpportunities(updatedLead.opportunities ?? opportunities);
+        onUpdate({ ...updatedLead, notes: newNotes as NoteData[], opportunities: updatedLead.opportunities ?? opportunities });
+      }
+    } finally {
+      setAddingNote(false);
     }
-    const leadRes = await fetch(`/api/leads/${lead.id}`);
-    const updatedLead: LeadFull = await leadRes.json();
-    setOpportunities(updatedLead.opportunities ?? opportunities);
-    onUpdate({ ...updatedLead, notes: newNotes as NoteData[], opportunities: updatedLead.opportunities ?? opportunities });
   }
 
   async function deleteNote(noteId: string) {
@@ -424,6 +432,8 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
   async function addTask() {
     if (!newTaskTitle.trim()) return;
     setAddingTask(true);
+    // Request push permission on first task creation
+    requestAndSubscribe().catch(() => {});
     const res = await fetch(`/api/leads/${lead.id}/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

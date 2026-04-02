@@ -35,6 +35,7 @@ export default function CompanyPicker({ value, displayName, onChange }: Props) {
       const params = new URLSearchParams();
       if (query) params.set('search', query);
       const res = await fetch(`/api/companies?${params}`);
+      if (!res.ok) return;
       const data = await res.json();
       setResults(data.map((c: CompanyOption) => ({ id: c.id, name: c.name })));
     }, 200);

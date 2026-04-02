@@ -20,6 +20,9 @@ export async function POST(_: NextRequest, { params }: Ctx) {
     },
   });
   if (!opp) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (session.user.role !== 'ADMIN' && opp.assignedToId !== session.user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   if (opp.notes.length === 0) return NextResponse.json({ error: 'Keine Notizen vorhanden' }, { status: 400 });
 
   const notesText = opp.notes

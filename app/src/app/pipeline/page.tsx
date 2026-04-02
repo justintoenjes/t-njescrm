@@ -149,11 +149,15 @@ export default function PipelinePage() {
     if (!over) return;
     const opp = opps.find(o => o.id === active.id);
     if (!opp) return;
-    await fetch(`/api/opportunities/${opp.id}`, {
+    const res = await fetch(`/api/opportunities/${opp.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage: opp.stage }),
     });
+    if (!res.ok) {
+      // Rollback: reload from server
+      load();
+    }
   }
 
   function handleOppUpdate(updated: OpportunityFull) {

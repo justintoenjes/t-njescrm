@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import SessionProviderWrapper from '@/components/SessionProviderWrapper';
 import { CategoryProvider } from '@/lib/category-context';
 import CallPopup from '@/components/CallPopup';
+import PushNotificationProvider from '@/components/PushNotificationInit';
 import './globals.css';
 
 export const viewport: Viewport = {
@@ -36,8 +37,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-tc-light text-gray-900 antialiased font-sans">
         <SessionProviderWrapper>
           <CategoryProvider>
-            {children}
-            <CallPopup />
+            <PushNotificationProvider>
+              {children}
+              <CallPopup />
+            </PushNotificationProvider>
           </CategoryProvider>
         </SessionProviderWrapper>
       </body>

@@ -1,7 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="80" fill="#062727"/>
-  <polygon points="220 400 120 200 180 80 320 400 220 400" fill="#76BDD3" opacity="0.3"/>
-  <polygon points="180 400 80 220 140 120 260 400 180 400" fill="#ffffff" opacity="0.15"/>
-  <text x="256" y="320" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="180" fill="#ffffff" letter-spacing="8">CRM</text>
-  <line x1="100" y1="355" x2="412" y2="355" stroke="#76BDD3" stroke-width="6" stroke-linecap="round"/>
+  <rect width="512" height="512" rx="96" fill="#062727"/>
+  <!-- Tönjes triangle mark -->
+  <polygon points="200 340 120 200 170 100 260 340" fill="#76BDD3" opacity="0.35"/>
+  <polygon points="170 340 90 210 140 120 230 340" fill="#ffffff" opacity="0.15"/>
+  <!-- CRM text -->
+  <text x="256" y="360" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="160" fill="#ffffff" letter-spacing="6">CRM</text>
+  <!-- Accent line -->
+  <line x1="110" y1="390" x2="402" y2="390" stroke="#76BDD3" stroke-width="5" stroke-linecap="round"/>
 </svg>

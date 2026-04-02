@@ -285,6 +285,44 @@ const dialServer = http.createServer(async (req, res) => {
   res.end();
 });
 
+// --- Daily push reminder check ---
+const PUSH_CRON_SECRET = process.env.PUSH_CRON_SECRET || '';
+const APP_URL = process.env.APP_URL || 'http://localhost:3000';
+
+function scheduleDailyPushCheck() {
+  if (!PUSH_CRON_SECRET) {
+    console.log('[PushCheck] PUSH_CRON_SECRET not set, skipping daily reminders');
+    return;
+  }
+
+  function msUntilNext(hour, minute) {
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(hour, minute, 0, 0);
+    if (target <= now) target.setDate(target.getDate() + 1);
+    return target - now;
+  }
+
+  function runCheck() {
+    console.log('[PushCheck] Running daily reminder check...');
+    fetch(`${APP_URL}/api/push/check-reminders`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': PUSH_CRON_SECRET },
+    })
+      .then(r => r.json())
+      .then(data => console.log('[PushCheck] Result:', JSON.stringify(data)))
+      .catch(err => console.error('[PushCheck] Error:', err.message));
+
+    // Schedule next run
+    setTimeout(runCheck, msUntilNext(8, 0));
+  }
+
+  // Schedule first run at 08:00
+  const ms = msUntilNext(8, 0);
+  console.log(`[PushCheck] Next check in ${Math.round(ms / 60000)}min`);
+  setTimeout(runCheck, ms);
+}
+
 // --- Start ---
 async function main() {
   console.log('[Callmonitor] Starting...');
@@ -295,6 +333,7 @@ async function main() {
   dialServer.listen(3002, '0.0.0.0', () => console.log('[Callmonitor] Dial on :3002'));
 
   connectCallmonitor();
+  scheduleDailyPushCheck();
 }
 
 main().catch(err => { console.error(err); process.exit(1); });

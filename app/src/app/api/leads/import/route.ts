@@ -30,13 +30,12 @@ export async function POST(request: NextRequest) {
     let companyId: string | undefined;
     const companyName = row.company?.trim();
     if (companyName) {
-      const existing = await prisma.company.findFirst({ where: { name: companyName } });
-      if (existing) {
-        companyId = existing.id;
-      } else {
-        const created = await prisma.company.create({ data: { name: companyName } });
-        companyId = created.id;
-      }
+      const company = await prisma.company.upsert({
+        where: { name: companyName },
+        update: {},
+        create: { name: companyName },
+      });
+      companyId = company.id;
     }
 
     toCreate.push({

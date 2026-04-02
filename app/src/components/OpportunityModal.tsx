@@ -281,18 +281,22 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
   async function addNote() {
     if (!noteText.trim() || !opp) return;
     setAddingNote(true);
-    const res = await fetch(`/api/opportunities/${opp.id}/notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: noteText.trim(), contactMade }),
-    });
-    const note = await res.json();
-    const currentUser = session?.user ? { id: session.user.id, name: session.user.name ?? '' } : null;
-    const newNotes = [{ ...note, author: note.author ?? currentUser }, ...notes];
-    setNotes(newNotes);
-    setNoteText('');
-    setContactMade(false);
-    setAddingNote(false);
+    try {
+      const res = await fetch(`/api/opportunities/${opp.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: noteText.trim(), contactMade }),
+      });
+      if (!res.ok) return;
+      const note = await res.json();
+      const currentUser = session?.user ? { id: session.user.id, name: session.user.name ?? '' } : null;
+      const newNotes = [{ ...note, author: note.author ?? currentUser }, ...notes];
+      setNotes(newNotes);
+      setNoteText('');
+      setContactMade(false);
+    } finally {
+      setAddingNote(false);
+    }
   }
 
   async function addTask() {

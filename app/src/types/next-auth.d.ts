@@ -1,3 +1,4 @@
+/// <reference types="vitest/globals" />
 import NextAuth from 'next-auth';
 
 declare module 'next-auth' {
@@ -23,5 +24,6 @@ declare module 'next-auth/jwt' {
     accessToken?: string;
     refreshToken?: string;
     accessTokenExpires?: number;
+    error?: string;
   }
 }

@@ -14,19 +14,33 @@ export default function AppleIcon() {
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: '#062727',
-          borderRadius: 36,
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
-        <span
+        <div
           style={{
-            fontSize: 72,
+            fontSize: 56,
             fontWeight: 700,
-            color: '#ffffff',
-            letterSpacing: 4,
+            color: 'white',
+            letterSpacing: 3,
+            display: 'flex',
           }}
         >
           CRM
-        </span>
+        </div>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 36,
+            left: 32,
+            right: 32,
+            height: 2,
+            backgroundColor: '#76BDD3',
+            borderRadius: 1,
+            display: 'flex',
+          }}
+        />
       </div>
     ),
     { ...size },

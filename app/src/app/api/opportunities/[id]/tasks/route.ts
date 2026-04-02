@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { sendPushToUser } from '@/lib/push';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -58,5 +59,16 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       data: { missedCallsCount: 0, noShowCount: 0 },
     }),
   ]);
+  // Push to assigned user if different from creator
+  const taskOwner = task.assignedToId;
+  if (taskOwner && taskOwner !== session.user.id) {
+    sendPushToUser(taskOwner, {
+      title: 'Neue Aufgabe',
+      body: `"${task.title}"${task.dueDate ? ` — fällig ${new Date(task.dueDate).toLocaleDateString('de-DE')}` : ''}`,
+      url: '/tasks',
+      tag: `task-created-${task.id}`,
+    }).catch(() => {});
+  }
+
   return NextResponse.json(task, { status: 201 });
 }

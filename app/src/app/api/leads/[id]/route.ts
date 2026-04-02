@@ -6,6 +6,7 @@ import { computeLeadPhase } from '@/lib/phase';
 import { calculateLeadScore, calculateLeadScoreBreakdown, scoreToTemperature } from '@/lib/lead-score';
 import { calculateOppScoreBreakdown, oppScoreToTemperature } from '@/lib/opp-score';
 import { normalizePhone } from '@/lib/phone';
+import { sendPushToUser } from '@/lib/push';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -102,6 +103,12 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
   const { name, companyId, email, phone, archived, assignedToId, formalAddress } = body;
+
+  // Track assignment change for push notification
+  const oldLead = (isAdmin && assignedToId !== undefined)
+    ? await prisma.lead.findUnique({ where: { id }, select: { assignedToId: true, name: true } })
+    : null;
+
   const updated = await prisma.lead.update({
     where: { id },
     data: {
@@ -141,6 +148,16 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
       },
     },
   });
+  // Push notification on assignment change (fire-and-forget)
+  if (oldLead && assignedToId && assignedToId !== oldLead.assignedToId) {
+    sendPushToUser(assignedToId, {
+      title: 'Neuer Lead zugewiesen',
+      body: `Dir wurde "${updated.name}" zugewiesen`,
+      url: '/',
+      tag: `lead-assigned-${id}`,
+    }).catch(() => {});
+  }
+
   const { daysWarm, daysCold } = await getConfig();
   return NextResponse.json(await enrichLead(updated, daysWarm, daysCold));
 }

@@ -19,5 +19,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ['/((?!login|api/auth|_next/static|_next/image|favicon.ico|logo.*\\.svg).*)'],
+  matcher: ['/((?!login|api/auth|api/push/vapid-public-key|_next/static|_next/image|favicon.ico|icon|apple-icon|manifest\\.json|sw\\.js|logo.*\\.svg).*)'],
 };

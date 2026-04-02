@@ -52,23 +52,27 @@ export default function CompanyModal({ companyId, onClose, onUpdate, onOpenLead,
   useEffect(() => {
     setLoading(true);
     fetch(`/api/companies/${companyId}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(data => {
         setCompany(data);
         setForm({ name: data.name, website: data.website ?? '' });
-        setLoading(false);
-      });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [companyId]);
 
   async function saveChanges() {
     setSaving(true);
-    await fetch(`/api/companies/${companyId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: form.name, website: form.website || null }),
-    });
-    setSaving(false);
-    onUpdate();
+    try {
+      const res = await fetch(`/api/companies/${companyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name, website: form.website || null }),
+      });
+      if (res.ok) onUpdate();
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function deleteCompany() {

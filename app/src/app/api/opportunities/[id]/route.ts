@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { calculateOppScoreBreakdown, oppScoreToTemperature } from '@/lib/opp-score';
 import { OpportunityStage } from '@prisma/client';
+import { sendPushToUser } from '@/lib/push';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -62,11 +63,9 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
   const isAdmin = session.user.role === 'ADMIN';
 
   // Verify user has access to this opportunity
-  if (!isAdmin) {
-    const existing = await prisma.opportunity.findUnique({ where: { id }, select: { assignedToId: true } });
-    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (existing.assignedToId !== session.user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const existing = await prisma.opportunity.findUnique({ where: { id }, select: { assignedToId: true } });
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!isAdmin && existing.assignedToId !== session.user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const opp = await prisma.opportunity.update({
     where: { id },
@@ -96,6 +95,16 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
       },
     },
   });
+
+  // Push notification on assignment change (fire-and-forget)
+  if (isAdmin && assignedToId && assignedToId !== existing.assignedToId) {
+    sendPushToUser(assignedToId, {
+      title: 'Neue Opportunity zugewiesen',
+      body: `Dir wurde "${opp.title}" zugewiesen`,
+      url: '/pipeline',
+      tag: `opp-assigned-${id}`,
+    }).catch(() => {});
+  }
 
   const config = await getConfig();
   const oppBreakdown = calculateOppScoreBreakdown(opp, { daysCold: config.daysCold });

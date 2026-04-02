@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { sendPushToUser } from '@/lib/push';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -23,11 +24,35 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   const { action } = body;
 
   if (action === 'missedCall') {
-    const lead = await prisma.lead.update({ where: { id }, data: { missedCallsCount: { increment: 1 } } });
+    const lead = await prisma.lead.update({
+      where: { id },
+      data: { missedCallsCount: { increment: 1 } },
+      select: { missedCallsCount: true, noShowCount: true, name: true, assignedToId: true },
+    });
+    if (lead.assignedToId) {
+      sendPushToUser(lead.assignedToId, {
+        title: 'Verpasster Anruf',
+        body: `${lead.name} — ${lead.missedCallsCount}x nicht erreicht`,
+        url: '/',
+        tag: `missed-call-${id}`,
+      }).catch(() => {});
+    }
     return NextResponse.json({ missedCallsCount: lead.missedCallsCount, noShowCount: lead.noShowCount });
   }
   if (action === 'noShow') {
-    const lead = await prisma.lead.update({ where: { id }, data: { noShowCount: { increment: 1 } } });
+    const lead = await prisma.lead.update({
+      where: { id },
+      data: { noShowCount: { increment: 1 } },
+      select: { missedCallsCount: true, noShowCount: true, name: true, assignedToId: true },
+    });
+    if (lead.assignedToId) {
+      sendPushToUser(lead.assignedToId, {
+        title: 'No-Show',
+        body: `${lead.name} ist nicht erschienen (${lead.noShowCount}x)`,
+        url: '/',
+        tag: `no-show-${id}`,
+      }).catch(() => {});
+    }
     return NextResponse.json({ missedCallsCount: lead.missedCallsCount, noShowCount: lead.noShowCount });
   }
 

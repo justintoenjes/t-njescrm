@@ -14,8 +14,10 @@ REMOTE_USER="microcrm"
 APP_DIR="/home/microcrm/app"
 IMAGE="microcrm-app"
 LOCAL_APP="$(dirname "$0")/app"
+LOCAL_CALLMONITOR="$(dirname "$0")/callmonitor"
 SSH_CMD="ssh $REMOTE"
 RSYNC_SSH="ssh"
+CALLMONITOR_HASH_FILE="$(dirname "$0")/.callmonitor-hash"
 
 # ── Hilfsfunktionen (CRM-spezifisch: sudo) ─────────────────────────────────
 run_remote() {
@@ -41,16 +43,15 @@ wait_for_service() {
 # ── SSH prüfen ──────────────────────────────────────────────────────────────
 ensure_ssh "$SSH_CMD"
 
-# ── Sync App ────────────────────────────────────────────────────────────────
+# ── Sync App (direkt nach $APP_DIR, kein /tmp/ Umweg) ──────────────────────
 echo "==> Syncing files..."
-rsync -az --delete \
+rsync -az --checksum --delete \
   --exclude='node_modules' \
   --exclude='.next' \
   --exclude='db-data' \
+  --rsync-path="sudo -u $REMOTE_USER rsync" \
   -e "$RSYNC_SSH" \
-  "$LOCAL_APP/" "$REMOTE:/tmp/crm-deploy/"
-
-ssh "$REMOTE" "sudo -u $REMOTE_USER rsync -a --delete /tmp/crm-deploy/ $APP_DIR/ && rm -rf /tmp/crm-deploy"
+  "$LOCAL_APP/" "$REMOTE:$APP_DIR/"
 
 # ── Sync Nginx Config ───────────────────────────────────────────────────────
 echo "==> Syncing nginx config..."
@@ -64,30 +65,70 @@ if [ -d "$(dirname "$0")/certs" ]; then
   ssh "$REMOTE" "sudo mkdir -p /home/$REMOTE_USER/certs && sudo cp /tmp/cert.pem /tmp/key.pem /home/$REMOTE_USER/certs/ && sudo chown $REMOTE_USER:users /home/$REMOTE_USER/certs/cert.pem /home/$REMOTE_USER/certs/key.pem && sudo rm -f /tmp/cert.pem /tmp/key.pem"
 fi
 
-# ── Sync Callmonitor ────────────────────────────────────────────────────────
-echo "==> Syncing callmonitor..."
-rsync -az --delete \
-  -e "$RSYNC_SSH" \
-  "$(dirname "$0")/callmonitor/" "$REMOTE:/tmp/crm-callmonitor/"
-ssh "$REMOTE" "sudo -u $REMOTE_USER mkdir -p /home/$REMOTE_USER/callmonitor && sudo -u $REMOTE_USER rsync -a --delete /tmp/crm-callmonitor/ /home/$REMOTE_USER/callmonitor/ && rm -rf /tmp/crm-callmonitor"
+# ── Sync + Build Callmonitor (nur wenn geändert) ────────────────────────────
+CALLMONITOR_HASH=$(find "$LOCAL_CALLMONITOR" -type f -exec md5 -q {} \; 2>/dev/null | sort | md5 -q)
+OLD_HASH=$(cat "$CALLMONITOR_HASH_FILE" 2>/dev/null || echo "")
+CALLMONITOR_CHANGED=false
+
+if [ "$CALLMONITOR_HASH" != "$OLD_HASH" ]; then
+  CALLMONITOR_CHANGED=true
+  echo "==> Syncing callmonitor (geändert)..."
+  rsync -az --checksum --delete \
+    --rsync-path="sudo -u $REMOTE_USER rsync" \
+    -e "$RSYNC_SSH" \
+    "$LOCAL_CALLMONITOR/" "$REMOTE:/home/$REMOTE_USER/callmonitor/"
+  echo "$CALLMONITOR_HASH" > "$CALLMONITOR_HASH_FILE"
+else
+  echo "==> Callmonitor unverändert, skip."
+fi
 
 run_remote "mkdir -p /home/$REMOTE_USER/uploads"
+
+# ── Ensure VAPID + Push env vars ───────────────────────────────────────────
+echo "==> Checking push notification env vars..."
+ENV_FILE="/home/$REMOTE_USER/.env"
+if ! ssh "$REMOTE" "sudo -u $REMOTE_USER grep -q VAPID_PUBLIC_KEY $ENV_FILE 2>/dev/null"; then
+  echo "  Adding VAPID keys + PUSH_CRON_SECRET..."
+  ssh "$REMOTE" "sudo -u $REMOTE_USER bash -c 'cat >> $ENV_FILE'" <<'ENVEOF'
+
+# Push Notifications (VAPID)
+VAPID_PUBLIC_KEY=BIjEtIWYwEJ9bc9ErKmL0VYOCDqoKOyXE2QVzE20I0RtAsgYEbrTvIBFsZiznSqdMhCwxi9zBlKlcHXlOdEOPiw
+VAPID_PRIVATE_KEY=p4rgnvztuqSn7dZNfMJO8cSJjd9S0IEA-Lmg3cXNyH8
+VAPID_EMAIL=mailto:info@toenjes-consulting.de
+PUSH_CRON_SECRET=e2c0a8f190faff66ed09b45e68d9b91bec1122c21d9806751594156becefdd3b
+ENVEOF
+  echo "  ✓ VAPID keys added"
+else
+  echo "  ✓ Already configured"
+fi
 
 # ── Build ────────────────────────────────────────────────────────────────────
 echo "==> Building app image..."
 run_remote "podman build --security-opt label=disable -t $IMAGE $APP_DIR/"
 
-echo "==> Building callmonitor image..."
-run_remote "podman build --security-opt label=disable -t microcrm-callmonitor /home/$REMOTE_USER/callmonitor/"
+if [ "$CALLMONITOR_CHANGED" = true ]; then
+  echo "==> Building callmonitor image..."
+  run_remote "podman build --security-opt label=disable -t microcrm-callmonitor /home/$REMOTE_USER/callmonitor/"
+fi
 
-# ── Restart Services ─────────────────────────────────────────────────────────
+# ── Restart Services (parallel wo möglich) ───────────────────────────────────
 remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-app.service"
+
+# Callmonitor + Proxy parallel starten (unabhängig von App)
+if [ "$CALLMONITOR_CHANGED" = true ]; then
+  remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-callmonitor.service" &
+  CM_PID=$!
+fi
+remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-proxy.service" &
+PROXY_PID=$!
+
 wait_for_service "microcrm-app.service" 30
 
-remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-callmonitor.service"
-wait_for_service "microcrm-callmonitor.service" 20
-
-remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-proxy.service"
+if [ "$CALLMONITOR_CHANGED" = true ]; then
+  wait $CM_PID
+  wait_for_service "microcrm-callmonitor.service" 20
+fi
+wait $PROXY_PID
 wait_for_service "microcrm-proxy.service" 15
 
 # ── Health Check ─────────────────────────────────────────────────────────────

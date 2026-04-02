@@ -44,6 +44,10 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+      } else if (token.id) {
+        // Refresh role from DB on each request (handles admin role changes)
+        const dbUser = await prisma.user.findUnique({ where: { id: token.id as string }, select: { role: true } });
+        if (dbUser) token.role = dbUser.role;
       }
 
       // Store Azure AD access token for Graph API (mail integration)
@@ -92,7 +96,10 @@ export const authOptions: NextAuthOptions = {
             token.accessTokenExpires = Date.now() + data.expires_in * 1000;
           }
         } catch {
-          // Token refresh failed — user will need to re-login
+          // Token refresh failed — clear tokens so frontend knows to re-login
+          token.accessToken = undefined;
+          token.accessTokenExpires = 0;
+          token.error = 'RefreshTokenExpired';
         }
       }
 
