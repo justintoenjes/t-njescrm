@@ -25,9 +25,8 @@ export default function Header() {
   return (
     <header className="bg-tc-dark sticky top-0 z-30 pt-[env(safe-area-inset-top)] max-w-[100vw]">
       <div className="max-w-7xl mx-auto px-2 sm:px-4 flex items-center h-14 gap-2 sm:gap-6 overflow-x-auto scrollbar-hide">
-        <Link href="/" className="shrink-0 flex items-end gap-2">
-          <img src="/logo-white.svg" alt="Tönjes Consulting" className="h-8 w-auto" />
-          <span className="text-white font-light text-2xl tracking-wide font-sans leading-none hidden sm:block">CRM</span>
+        <Link href="/" className="shrink-0">
+          <img src="/logo-crm.svg" alt="Tönjes CRM" className="h-10 w-auto" />
         </Link>
 
         {/* Category Toggle */}
