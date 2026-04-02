@@ -270,11 +270,8 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
       setTotalScanned(result.scanned);
       if (!result.nextCursor) setAllScanned(true);
 
-      const sel = new Set<string>();
-      for (const c of result.newContacts) {
-        if (!c.isDuplicate) sel.add(c.email);
-      }
-      setSelected(sel);
+      // Start with nothing selected — user picks explicitly
+      setSelected(new Set());
       setStep('results');
     } catch (e: any) {
       setScanError(e.message ?? 'Netzwerkfehler');
@@ -304,13 +301,6 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
 
         if (unique.length > 0) {
           setContacts(prev => [...prev, ...unique]);
-          setSelected(prev => {
-            const next = new Set(prev);
-            for (const c of unique) {
-              if (!c.isDuplicate) next.add(c.email);
-            }
-            return next;
-          });
         }
 
         setTotalScanned(prev => prev + result.scanned);
@@ -533,11 +523,11 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
                         className={`group ${contact.isDuplicate ? 'opacity-50 bg-gray-50' : 'hover:bg-gray-50 cursor-pointer'}`}
                         onClick={() => !contact.isDuplicate && setExpandedEmail(isExpanded ? null : contact.email)}
                       >
-                        <td className="pl-4 pr-2 py-2.5 align-top">
+                        <td className="pl-4 pr-2 py-2.5 align-top" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selected.has(contact.email)}
-                            onChange={(e) => { e.stopPropagation(); toggleSelect(contact.email); }}
+                            onChange={() => toggleSelect(contact.email)}
                             disabled={contact.isDuplicate}
                             className="accent-tc-blue mt-0.5"
                           />
