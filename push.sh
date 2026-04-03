@@ -9,3 +9,6 @@ DEPLOY_LIB="$(cd "$(dirname "$0")/.." && pwd)/deploy-lib.sh"
 source "$DEPLOY_LIB"
 
 deploy_push
+
+echo ""
+deploy_wait_ci "justintoenjes/t-njescrm"
