@@ -290,8 +290,8 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
       let pagesLoaded = 0;
       const MAX_PAGES = 10; // safety limit
 
-      // Keep loading until we find at least 1 new contact or run out of pages
-      while (cursor && totalNewUnique === 0 && pagesLoaded < MAX_PAGES) {
+      // Keep loading until we find at least 10 new contacts or run out of pages
+      while (cursor && totalNewUnique < 10 && pagesLoaded < MAX_PAGES) {
         const existingEmails = new Set(contacts.map(c => c.email.toLowerCase()));
         const result = await fetchPage(cursor, existingEmails);
         pagesLoaded++;
