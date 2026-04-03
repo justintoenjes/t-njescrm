@@ -1,11 +1,11 @@
-Last deploy: 2026-04-03 13:13:32
-Total: 310s
+Last deploy: 2026-04-03 18:06:44
+Total: 1038s
 
     1s  checks
-    1s  sync app
-    5s  sync nginx+certs+callmonitor
+    2s  sync app
+    4s  sync nginx+certs+callmonitor
     2s  env check
-  102s  build app
-  105s  restart app
+  831s  build app
+  104s  restart app
    93s  restart proxy
     1s  health check
