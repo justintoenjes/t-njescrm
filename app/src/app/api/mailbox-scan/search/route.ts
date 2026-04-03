@@ -32,40 +32,42 @@ const OFFER_TERMS = /angebot|kostenvoranschlag|offerte|proposal|preisangebot|auf
 // ── Newsletter / Automated sender detection ──
 
 const NOREPLY_PATTERNS = [
-  // No-reply / bounce
-  /^no-?reply$/i, /^noreply/i, /^donotreply/i, /^bounce/i,
+  // No-reply / bounce (prefix match — info-noreply, do-not-reply, etc.)
+  /noreply/i, /donotreply/i, /^bounce/i,
   // Newsletter / news
   /^newsletter/i, /^news$/i, /^digest/i, /^nl$/i,
-  // Generic department addresses
-  /^info$/i, /^service$/i, /^support$/i, /^office$/i,
-  /^hello$/i, /^team$/i, /^marketing$/i, /^sales$/i,
-  /^kontakt$/i, /^contact$/i, /^presse$/i, /^press$/i, /^pr$/i,
+  // Generic department addresses (prefix match: info-de, marketing-team, etc.)
+  /^info([_\-.]|$)/i, /^service([_\-.]|$)/i, /^support([_\-.]|$)/i, /^office([_\-.]|$)/i,
+  /^hello([_\-.]|$)/i, /^team([_\-.]|$)/i, /^marketing/i, /^sales([_\-.]|$)/i,
+  /^kontakt/i, /^contact([_\-.]|$)/i, /^presse/i, /^press([_\-.]|$)/i, /^pr$/i,
+  /^mail$/i, /^empfehlungen/i,
   // Training / events
-  /^academy$/i, /^training/i, /^webinar/i,
+  /^academy/i, /^training/i, /^webinar/i,
   /^event/i, /^einladung/i, /^invitation/i,
   // System / admin
-  /^mailer-daemon/i, /^postmaster/i, /^system$/i, /^admin$/i,
-  /^notifications?$/i, /^alert/i, /^updates?$/i,
-  /^groups-/i, /^mailrobot/i, /^robot$/i, /^automat/i,
-  // Billing / invoices
-  /^billing$/i, /^invoice$/i, /^rechnung/i, /^faktura/i,
-  /^payment$/i, /^zahlung/i, /^guthaben$/i,
-  /^bestellung/i, /^order$/i, /^versand$/i, /^shipping$/i, /^lieferung/i,
+  /^mailer-daemon/i, /^postmaster/i, /^system([_\-.]|$)/i, /^admin([_\-.]|$)/i,
+  /^notifications?([_\-.]|$)/i, /^alert/i, /^updates?([_\-.]|$)/i,
+  /^groups-/i, /^mailrobot/i, /^robot([_\-.]|$)/i, /^automat/i,
+  // Billing / invoices / accounting
+  /^billing/i, /^invoice/i, /^rechnung/i, /^faktura/i, /^accounting/i, /^buchhaltung/i,
+  /^payment/i, /^zahlung/i, /^guthaben/i,
+  /^bestellung/i, /^order([_\-.]|$)/i, /^versand/i, /^shipping/i, /^lieferung/i,
   // Jobs / recruiting
-  /^careers$/i, /^jobs$/i, /^recruiting$/i,
+  /^careers/i, /^jobs([_\-.]|$)/i, /^recruiting/i,
   // Privacy / GDPR
-  /^gdpr$/i, /^datenschutz/i, /^privacy$/i,
+  /^gdpr/i, /^datenschutz/i, /^privacy/i, /^dse$/i,
   // Content / media
-  /^redaktion/i, /^briefing/i, /^report$/i, /^bericht$/i,
+  /^redaktion/i, /^briefing/i, /^report([_\-.]|$)/i, /^bericht/i,
   // Registration / verification
-  /^register$/i, /^registrierung/i, /^signup$/i, /^verify$/i,
-  // Subscriptions / feedback
-  /^abo$/i, /^subscription/i, /^feedback$/i, /^survey$/i, /^umfrage/i,
+  /^register([_\-.]|$)/i, /^registrierung/i, /^signup/i, /^verify/i,
+  // Subscriptions / feedback / surveys
+  /^abo([_\-.]|$)/i, /^subscription/i, /^feedback/i, /^survey/i, /^umfrage/i,
+  /^unternehmensbefragung/i, /^befragung/i,
   /^keineantwort/i, /^postfach/i,
   // Support systems
   /^ticket/i, /^helpdesk/i, /^customercare/i,
-  // Catch: "noreply" anywhere in local part (e.g. info-noreply, do-not-reply)
-  /noreply/i,
+  // Platform relay addresses (conversation-*, partner_services, etc.)
+  /^conversation[_\-]/i, /^partner[_\-]/i,
 ];
 
 const NEWSLETTER_DOMAINS = [
@@ -88,6 +90,12 @@ const NEWSLETTER_DOMAINS = [
   // Banks / Finance
   'commerzbank.de', 'sparkasse.de', 'dkb.de', 'ing.de', 'postbank.de',
   'hays.com',
+  // Document / signing platforms
+  'docusign.net', 'docusign.com',
+  // Enterprise SaaS / ERP
+  'sap.com', 'salesforce.com', 'oracle.com', 'servicenow.com',
+  // Retail / consumer
+  'ikea.de', 'ikea.com',
 ];
 
 /**
@@ -122,11 +130,13 @@ function isAutomatedSender(email: string, displayName?: string): boolean {
   if (NEWSLETTER_DOMAINS.some(d => domain.endsWith('.' + d))) return true;
 
   // Heuristic: subdomain patterns that indicate automated mail
+  // Check ALL subdomain parts, not just the first (e.g. hej.news.email.ikea.de)
   const subParts = domain.split('.');
   if (subParts.length >= 3) {
-    const sub = subParts[0];
-    if (/^(mail|news|newsletter|marketing|noreply|notify|updates|campaigns|mailer|bulk|promo|email|info|redaktion|bounce|return|sender|post|mailing)$/.test(sub)) {
-      return true;
+    const automatedSubdomains = /^(mail|news|newsletter|marketing|noreply|notify|updates|campaigns|mailer|bulk|promo|email|info|redaktion|bounce|return|sender|post|mailing|eumail|transactional|outbound)$/;
+    // Check all parts except the last two (which are the base domain)
+    for (let i = 0; i < subParts.length - 2; i++) {
+      if (automatedSubdomains.test(subParts[i])) return true;
     }
   }
 
