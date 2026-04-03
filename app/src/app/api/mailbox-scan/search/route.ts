@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
-import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { parseSignature, splitName } from '@/lib/signature-parser';
 
@@ -33,17 +32,40 @@ const OFFER_TERMS = /angebot|kostenvoranschlag|offerte|proposal|preisangebot|auf
 // ── Newsletter / Automated sender detection ──
 
 const NOREPLY_PATTERNS = [
-  /^no-?reply/i, /^noreply/i, /^donotreply/i, /^bounce/i,
-  /^newsletter/i, /^news@/i, /^digest/i,
-  /^info@/i, /^service@/i, /^support@/i, /^office@/i,
-  /^hello@/i, /^team@/i, /^marketing@/i, /^sales@/i,
-  /^academy@/i, /^training[.@]/i, /^webinar/i,
-  /^mailer-daemon/i, /^postmaster/i,
-  /^notifications?@/i, /^alert/i, /^updates?@/i,
-  /^guthaben@/i, /^keineantwort/i,
-  /^groups-/i, /^mailrobot/i, /^robot@/i, /^automat/i,
-  /^billing@/i, /^invoice@/i, /^rechnung@/i,
-  /^careers@/i, /^jobs@/i, /^recruiting@/i,
+  // No-reply / bounce
+  /^no-?reply$/i, /^noreply/i, /^donotreply/i, /^bounce/i,
+  // Newsletter / news
+  /^newsletter/i, /^news$/i, /^digest/i, /^nl$/i,
+  // Generic department addresses
+  /^info$/i, /^service$/i, /^support$/i, /^office$/i,
+  /^hello$/i, /^team$/i, /^marketing$/i, /^sales$/i,
+  /^kontakt$/i, /^contact$/i, /^presse$/i, /^press$/i, /^pr$/i,
+  // Training / events
+  /^academy$/i, /^training/i, /^webinar/i,
+  /^event/i, /^einladung/i, /^invitation/i,
+  // System / admin
+  /^mailer-daemon/i, /^postmaster/i, /^system$/i, /^admin$/i,
+  /^notifications?$/i, /^alert/i, /^updates?$/i,
+  /^groups-/i, /^mailrobot/i, /^robot$/i, /^automat/i,
+  // Billing / invoices
+  /^billing$/i, /^invoice$/i, /^rechnung/i, /^faktura/i,
+  /^payment$/i, /^zahlung/i, /^guthaben$/i,
+  /^bestellung/i, /^order$/i, /^versand$/i, /^shipping$/i, /^lieferung/i,
+  // Jobs / recruiting
+  /^careers$/i, /^jobs$/i, /^recruiting$/i,
+  // Privacy / GDPR
+  /^gdpr$/i, /^datenschutz/i, /^privacy$/i,
+  // Content / media
+  /^redaktion/i, /^briefing/i, /^report$/i, /^bericht$/i,
+  // Registration / verification
+  /^register$/i, /^registrierung/i, /^signup$/i, /^verify$/i,
+  // Subscriptions / feedback
+  /^abo$/i, /^subscription/i, /^feedback$/i, /^survey$/i, /^umfrage/i,
+  /^keineantwort/i, /^postfach/i,
+  // Support systems
+  /^ticket/i, /^helpdesk/i, /^customercare/i,
+  // Catch: "noreply" anywhere in local part (e.g. info-noreply, do-not-reply)
+  /noreply/i,
 ];
 
 const NEWSLETTER_DOMAINS = [
@@ -52,16 +74,40 @@ const NEWSLETTER_DOMAINS = [
   'google.com', 'youtube.com', 'apple.com', 'microsoft.com',
   // E-Commerce / Services
   'amazon.com', 'amazon.de', 'paypal.com', 'ebay.de', 'ebay.com',
-  'check24.de', 'klarmobil.de', 'spendit.de',
+  'check24.de', 'klarmobil.de', 'spendit.de', 'otto.de', 'zalando.de',
   // Job portals / Recruiting platforms
   'xing.com', 'stepstone.de', 'indeed.com', 'monster.de',
   'freelancermap.de', 'gulp.de', 'randstad.de',
+  'personio.de', 'softgarden.de', 'rexx-systems.com',
   // Dev / SaaS
   'github.com', 'notion.so', 'slack.com', 'atlassian.com',
   'figma.com', 'canva.com', 'zoom.us', 'dropbox.com',
+  'hubspot.com', 'mailchimp.com', 'sendinblue.com', 'getresponse.com',
+  // Review platforms
+  'kununu.com',
+  // Banks / Finance
+  'commerzbank.de', 'sparkasse.de', 'dkb.de', 'ing.de', 'postbank.de',
+  'hays.com',
 ];
 
-function isAutomatedSender(email: string): boolean {
+/**
+ * Heuristic: automated senders often have company/product names instead of person names.
+ * Real people have "Firstname Lastname", not "kununu Updates" or "Handelsblatt Morning Briefing".
+ */
+function looksLikePersonName(name: string): boolean {
+  if (!name || name.length < 3) return false;
+  const trimmed = name.trim();
+  // Must have at least two words (first + last name)
+  const words = trimmed.split(/\s+/);
+  if (words.length < 2) return false;
+  // Each word should start with uppercase and be mostly letters (no "GmbH", "AG", "Updates")
+  const nameWordPattern = /^[A-ZÄÖÜ][a-zäöüß]+$/;
+  const personLikeWords = words.filter(w => nameWordPattern.test(w));
+  // At least 2 words should look like name parts
+  return personLikeWords.length >= 2;
+}
+
+function isAutomatedSender(email: string, displayName?: string): boolean {
   const lower = email.toLowerCase();
   const localPart = lower.split('@')[0] ?? '';
   const domain = lower.split('@')[1] ?? '';
@@ -79,10 +125,13 @@ function isAutomatedSender(email: string): boolean {
   const subParts = domain.split('.');
   if (subParts.length >= 3) {
     const sub = subParts[0];
-    if (/^(mail|news|newsletter|marketing|noreply|notify|updates|campaigns|mailer|bulk|promo)$/.test(sub)) {
+    if (/^(mail|news|newsletter|marketing|noreply|notify|updates|campaigns|mailer|bulk|promo|email|info|redaktion|bounce|return|sender|post|mailing)$/.test(sub)) {
       return true;
     }
   }
+
+  // Heuristic: display name doesn't look like a person name → likely automated
+  if (displayName && !looksLikePersonName(displayName)) return true;
 
   return false;
 }
@@ -93,8 +142,9 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
-  if (!token?.accessToken) {
+  // Use accessToken from session (refreshed by getServerSession JWT callback)
+  const accessToken = (session as any).accessToken as string | undefined;
+  if (!accessToken) {
     return NextResponse.json({ error: 'Keine Microsoft-Verbindung. Bitte mit Microsoft anmelden.' }, { status: 403 });
   }
 
@@ -102,7 +152,6 @@ export async function POST(request: NextRequest) {
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
 
   const { mode, dateFrom, dateTo, cursor } = body;
-  const accessToken = token.accessToken as string;
   const ownEmail = (session.user.email ?? '').toLowerCase();
   const ownDomain = ownEmail.split('@')[1] ?? '';
 
@@ -144,9 +193,10 @@ export async function POST(request: NextRequest) {
     // Filter: external senders only, no newsletters
     const externalMessages = messages.filter((msg: any) => {
       const fromEmail = msg.from?.emailAddress?.address?.toLowerCase() ?? '';
+      const fromName = msg.from?.emailAddress?.name ?? '';
       if (!fromEmail || fromEmail === ownEmail) return false;
       if (ownDomain && fromEmail.endsWith(`@${ownDomain}`)) return false;
-      if (isAutomatedSender(fromEmail)) return false;
+      if (isAutomatedSender(fromEmail, fromName)) return false;
       return true;
     });
 
