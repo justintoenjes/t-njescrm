@@ -187,23 +187,14 @@ export async function POST(request: NextRequest) {
       let confidence = 0;
       let source: 'signature' | 'offer' = 'signature';
 
-      // Parse signature from body
+      // Parse signature from body, skipping own company in results
+      const ownCompanyHint = ownDomain ? ownDomain.split('.')[0] : undefined;
       const htmlBody = bodiesMap.get(msg.id) ?? msg.bodyPreview ?? '';
-      const sig = parseSignature(htmlBody);
+      const sig = parseSignature(htmlBody, { ownCompanyHint });
       phone = sig.phone;
       company = sig.company;
       title = sig.title;
       confidence = sig.confidence;
-
-      // Filter out own company from parsed results
-      if (company && ownDomain) {
-        const ownCompanyHint = ownDomain.split('.')[0]; // e.g. "toenjes-consulting" from domain
-        if (company.toLowerCase().includes(ownCompanyHint.toLowerCase()) && ownCompanyHint.length >= 4) {
-          company = null;
-          title = null; // likely also from own signature
-          confidence = Math.max(0, confidence - 0.35);
-        }
-      }
 
       // Boost confidence for offer matches
       if (mode === 'offers' || mode === 'both') {

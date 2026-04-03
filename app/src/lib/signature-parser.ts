@@ -10,6 +10,10 @@ export type ParsedSignature = {
   confidence: number; // 0–1
 };
 
+export type ParseOptions = {
+  ownCompanyHint?: string; // e.g. "toenjes" — skip this company in results
+};
+
 // Signature delimiters (German + English)
 const SIGNATURE_DELIMITERS = [
   /mit\s+freundlichen\s+gr[üu](?:ß|ss)en/i,
@@ -123,25 +127,36 @@ function extractPhone(text: string): string | null {
 /**
  * Extract a company name from text.
  */
-function extractCompany(text: string): string | null {
-  // Try legal form patterns first (GmbH, AG, etc.)
+function extractCompany(text: string, ownCompanyHint?: string): string | null {
+  const allMatches: string[] = [];
+
+  // Collect all legal form matches (GmbH, AG, etc.)
   COMPANY_LEGAL_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = COMPANY_LEGAL_PATTERN.exec(text)) !== null) {
     const full = match[0].trim().replace(/\s+/g, ' ');
     if (full.length < 5) continue;
-    return full;
+    allMatches.push(full);
   }
 
-  // Try public sector / org patterns (Verband, Stadtwerke, etc.)
+  // Collect all org pattern matches (Verband, Stadtwerke, etc.)
   ORG_PATTERN.lastIndex = 0;
   while ((match = ORG_PATTERN.exec(text)) !== null) {
     const full = match[0].trim().replace(/\s+/g, ' ');
     if (full.length < 5) continue;
-    return full;
+    allMatches.push(full);
   }
 
-  return null;
+  if (allMatches.length === 0) return null;
+
+  // Skip own company, prefer the sender's company
+  if (ownCompanyHint && ownCompanyHint.length >= 4) {
+    const hint = ownCompanyHint.toLowerCase();
+    const external = allMatches.find(c => !c.toLowerCase().includes(hint));
+    if (external) return external;
+  }
+
+  return allMatches[0];
 }
 
 // Keywords that indicate legal disclaimer / Impressum (not the sender's actual title)
@@ -188,12 +203,12 @@ function extractTitle(text: string): TitleResult | null {
 /**
  * Parse an email body (HTML) and extract signature information.
  */
-export function parseSignature(htmlBody: string): ParsedSignature {
+export function parseSignature(htmlBody: string, options?: ParseOptions): ParsedSignature {
   const text = htmlToText(htmlBody);
   const sigBlock = extractSignatureBlock(text);
 
   const phone = extractPhone(sigBlock);
-  const company = extractCompany(sigBlock);
+  const company = extractCompany(sigBlock, options?.ownCompanyHint);
   const titleResult = extractTitle(sigBlock);
   const title = titleResult?.title ?? null;
 
