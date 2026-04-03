@@ -150,8 +150,9 @@ export async function POST(request: NextRequest) {
       return true;
     });
 
-    // For offers/both mode: also filter to only emails mentioning offer terms
-    const relevantMessages = (mode === 'offers' || mode === 'both')
+    // For offers-only mode: filter to emails mentioning offer terms
+    // For "both" mode: keep ALL emails (offers get boosted later in confidence)
+    const relevantMessages = mode === 'offers'
       ? externalMessages.filter((msg: any) => {
           const subject = msg.subject ?? '';
           const preview = msg.bodyPreview ?? '';
