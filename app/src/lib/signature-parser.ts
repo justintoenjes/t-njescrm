@@ -35,18 +35,23 @@ const PHONE_PATTERNS = [
 
 // German legal form suffixes for company detection
 // Require a proper company name (word with 3+ chars) immediately before the suffix
-const COMPANY_PATTERN = /\b([\w\u00C0-\u024F][\w\u00C0-\u024F&.\-\s]{2,38})\s+(GmbH\s*&\s*Co\.?\s*KG(?:aA)?|GmbH|mbH|e\.?\s?K\.|Inc\.|Ltd\.?|LLC)\b|\b([\w\u00C0-\u024F][\w\u00C0-\u024F&.\-\s]{4,38})\s+(AG|KG(?:aA)?|GbR|OHG|UG|SE|S\.?A\.?)\b/gi;
+const COMPANY_LEGAL_PATTERN = /\b([\w\u00C0-\u024F][\w\u00C0-\u024F&.\-\s]{2,38})\s+(GmbH\s*&\s*Co\.?\s*KG(?:aA)?|GmbH|mbH|e\.?\s?K\.|Inc\.|Ltd\.?|LLC)\b|\b([\w\u00C0-\u024F][\w\u00C0-\u024F&.\-\s]{4,38})\s+(AG|KG(?:aA)?|GbR|OHG|UG|SE|S\.?A\.?)\b/gi;
+
+// Public sector / non-profit organizations (no legal suffix needed)
+const ORG_PATTERN = /\b[\w\u00C0-\u024F][\w\u00C0-\u024F&.\-\s]{2,38}(?:verband|stadtwerke|wasserwerke|landratsamt|landkreis|bezirksamt|ministerium|universit[äa]t|hochschule|klinikum|krankenhaus|stiftung|kammer|anstalt|körperschaft|genossenschaft|e\.\s?V\.|eingetragener?\s+Verein)\b/gi;
 
 // Job title patterns (German + English)
 const TITLE_PATTERNS = [
   /(?:Gesch[äa]ftsf[üu]hrer(?:in)?|Inhaber(?:in)?|Prokurist(?:in)?|Vorstand|Vorst[äa]ndin)/i,
   /(?:Geschäftsleitung|Betriebsleitung)/i,
-  /(?:(?:Abteilungs|Vertriebs|Projekt|Team|Bereichs|Niederlassungs|Regional)leiter(?:in)?)/i,
+  /(?:(?:Abteilungs|Vertriebs|Projekt|Team|Bereichs|Niederlassungs|Regional|Sachgebiets|Referats|Amts|Fach|Gruppen|Stabsstellen)leiter(?:in)?)/i,
   /(?:(?:Senior|Junior|Lead|Head\s+of|Director|Direktor(?:in)?)\s+[\w\s&\-/]{2,30})/i,
   /(?:CEO|CTO|CFO|COO|CMO|CIO|CPO|CHRO|VP|SVP|EVP)\b/i,
   /(?:Manager(?:in)?|Consultant|Berater(?:in)?|Referent(?:in)?|Koordinator(?:in)?|Sachbearbeiter(?:in)?)\b/i,
   /(?:Partner(?:in)?|Associate|Analyst(?:in)?|Architekt(?:in)?|Ingenieur(?:in)?)\b/i,
   /(?:Personalleiter(?:in)?|Recruiter(?:in)?|HR\s+[\w\s]{2,20})/i,
+  /(?:Dezernent(?:in)?|Oberb[üu]rgermeister(?:in)?|B[üu]rgermeister(?:in)?|Landrat|Landr[äa]tin|Ministerialrat|Ministerialr[äa]tin)/i,
+  /(?:Einkauf|Eink[äa]ufer(?:in)?|Beschaffung|Vergabestelle)/i,
 ];
 
 /**
@@ -119,29 +124,65 @@ function extractPhone(text: string): string | null {
  * Extract a company name from text.
  */
 function extractCompany(text: string): string | null {
-  // Use exec loop since the regex has alternation with groups
-  COMPANY_PATTERN.lastIndex = 0;
+  // Try legal form patterns first (GmbH, AG, etc.)
+  COMPANY_LEGAL_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = COMPANY_PATTERN.exec(text)) !== null) {
+  while ((match = COMPANY_LEGAL_PATTERN.exec(text)) !== null) {
     const full = match[0].trim().replace(/\s+/g, ' ');
-    // Skip very short matches (likely false positives)
     if (full.length < 5) continue;
     return full;
   }
+
+  // Try public sector / org patterns (Verband, Stadtwerke, etc.)
+  ORG_PATTERN.lastIndex = 0;
+  while ((match = ORG_PATTERN.exec(text)) !== null) {
+    const full = match[0].trim().replace(/\s+/g, ' ');
+    if (full.length < 5) continue;
+    return full;
+  }
+
   return null;
 }
 
+// Keywords that indicate legal disclaimer / Impressum (not the sender's actual title)
+const IMPRESSUM_KEYWORDS = /amtsgericht|handelsregister|registergericht|hrb|hra|sitz der gesellschaft|ust-?id|steuer-?nr|steuernummer|geschäftsführung:/i;
+
+// Titles that commonly appear in legal disclaimers rather than as the sender's role
+const GENERIC_LEGAL_TITLES = /^geschäftsführer(?:in)?$|^vorstand$|^vorständin$/i;
+
+type TitleResult = { title: string; isGenericLegal: boolean };
+
 /**
  * Extract a job title from text.
+ * Filters out titles that appear in Impressum/legal disclaimer context.
+ * Prefers specific titles over generic ones (e.g. "Sachgebietsleiter" over "Geschäftsführer").
  */
-function extractTitle(text: string): string | null {
-  for (const pattern of TITLE_PATTERNS) {
-    const match = text.match(pattern);
-    if (match) {
-      return match[0].trim();
+function extractTitle(text: string): TitleResult | null {
+  const lines = text.split('\n');
+  const matches: TitleResult[] = [];
+
+  for (const line of lines) {
+    // Skip lines that are clearly legal disclaimers
+    if (IMPRESSUM_KEYWORDS.test(line)) continue;
+
+    for (const pattern of TITLE_PATTERNS) {
+      const match = line.match(pattern);
+      if (match) {
+        const title = match[0].trim();
+        const isGenericLegal = GENERIC_LEGAL_TITLES.test(title);
+        matches.push({ title, isGenericLegal });
+      }
     }
   }
-  return null;
+
+  if (matches.length === 0) return null;
+
+  // Prefer specific (non-generic-legal) titles
+  const specific = matches.find(m => !m.isGenericLegal);
+  if (specific) return specific;
+
+  // Only generic titles left (e.g. just "Geschäftsführer")
+  return matches[0];
 }
 
 /**
@@ -153,13 +194,17 @@ export function parseSignature(htmlBody: string): ParsedSignature {
 
   const phone = extractPhone(sigBlock);
   const company = extractCompany(sigBlock);
-  const title = extractTitle(sigBlock);
+  const titleResult = extractTitle(sigBlock);
+  const title = titleResult?.title ?? null;
 
   // Confidence: each found field adds weight
   let confidence = 0;
   if (phone) confidence += 0.35;
   if (company) confidence += 0.35;
-  if (title) confidence += 0.3;
+  if (titleResult) {
+    // Generic legal titles (Geschäftsführer alone) get less weight — they're often from Impressum
+    confidence += titleResult.isGenericLegal ? 0.15 : 0.3;
+  }
 
   return { phone, company, title, confidence };
 }
