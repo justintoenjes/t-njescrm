@@ -92,3 +92,15 @@ export const PHASE_OPTIONS: LeadPhase[] = [
   'VERLOREN',
   'ARCHIVIERT',
 ];
+
+export const VERTRIEB_PHASE_OPTIONS: LeadPhase[] = [
+  'NEU', 'IN_BEARBEITUNG',
+  'PROPOSAL', 'NEGOTIATION', 'CLOSING',
+  'GEWONNEN', 'VERLOREN', 'ARCHIVIERT',
+];
+
+export const RECRUITING_PHASE_OPTIONS: LeadPhase[] = [
+  'NEU', 'IN_BEARBEITUNG',
+  'SCREENING', 'INTERVIEW', 'OFFER',
+  'GEWONNEN', 'VERLOREN', 'ARCHIVIERT',
+];

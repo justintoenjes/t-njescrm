@@ -84,8 +84,35 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  // Sort by score descending (most urgent first)
-  withScores.sort((a, b) => b.score - a.score);
+  // Sorting
+  const sortBy = searchParams.get('sortBy') ?? 'score';
+  const sortDir = searchParams.get('sortDir') === 'asc' ? 1 : -1;
+
+  withScores.sort((a, b) => {
+    let cmp = 0;
+    switch (sortBy) {
+      case 'name':
+        cmp = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'de');
+        break;
+      case 'company':
+        cmp = (a.companyRef?.name ?? '').localeCompare(b.companyRef?.name ?? '', 'de');
+        break;
+      case 'phase':
+        cmp = (a.phase ?? '').localeCompare(b.phase ?? '', 'de');
+        break;
+      case 'lastContactedAt': {
+        const da = a.lastContactedAt ? new Date(a.lastContactedAt).getTime() : 0;
+        const db = b.lastContactedAt ? new Date(b.lastContactedAt).getTime() : 0;
+        cmp = da - db;
+        break;
+      }
+      case 'score':
+      default:
+        cmp = a.score - b.score;
+        break;
+    }
+    return cmp * sortDir;
+  });
 
   let result = withScores;
   if (phaseFilter) result = result.filter(l => l.phase === phaseFilter);

@@ -264,13 +264,31 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
     setExpandedEmail(null);
 
     try {
-      const result = await fetchPage(null, new Set());
-      setContacts(result.newContacts);
-      setNextCursor(result.nextCursor);
-      setTotalScanned(result.scanned);
-      if (!result.nextCursor) setAllScanned(true);
+      const TARGET = 50;
+      const MAX_PAGES = 20;
+      let cursor: string | null = null;
+      let allContacts: ScannedContact[] = [];
+      let scannedTotal = 0;
+      let pagesLoaded = 0;
 
-      // Start with nothing selected — user picks explicitly
+      while (allContacts.length < TARGET && pagesLoaded < MAX_PAGES) {
+        const existingEmails = new Set(allContacts.map(c => c.email.toLowerCase()));
+        const result = await fetchPage(cursor, existingEmails);
+        pagesLoaded++;
+        scannedTotal += result.scanned;
+
+        const unique = result.newContacts.filter(c => !existingEmails.has(c.email.toLowerCase()));
+        allContacts = [...allContacts, ...unique];
+
+        cursor = result.nextCursor;
+        if (!cursor) break;
+      }
+
+      setContacts(allContacts);
+      setNextCursor(cursor);
+      setTotalScanned(scannedTotal);
+      if (!cursor) setAllScanned(true);
+
       setSelected(new Set());
       setStep('results');
     } catch (e: any) {
@@ -288,10 +306,10 @@ function MailboxTab({ onClose, onImported, category }: { onClose: () => void; on
       let cursor: string | null = nextCursor;
       let totalNewUnique = 0;
       let pagesLoaded = 0;
-      const MAX_PAGES = 10; // safety limit
+      const MAX_PAGES = 20; // safety limit
 
-      // Keep loading until we find at least 10 new contacts or run out of pages
-      while (cursor && totalNewUnique < 10 && pagesLoaded < MAX_PAGES) {
+      // Keep loading until we find at least 50 new contacts or run out of pages
+      while (cursor && totalNewUnique < 50 && pagesLoaded < MAX_PAGES) {
         const existingEmails = new Set(contacts.map(c => c.email.toLowerCase()));
         const result = await fetchPage(cursor, existingEmails);
         pagesLoaded++;

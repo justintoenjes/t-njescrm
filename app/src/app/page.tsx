@@ -3,14 +3,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Search, Plus, Download, Upload, AlertCircle, Briefcase, FileText, Mail, CheckSquare, Square, Archive, UserPlus, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, Download, Upload, AlertCircle, Briefcase, FileText, Mail, CheckSquare, Square, Archive, UserPlus, ArrowRight, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import LeadModal, { LeadFull } from '@/components/LeadModal';
 import Header from '@/components/Header';
 import ImportModal from '@/components/ImportModal';
 import ScoreBreakdownPopover from '@/components/ScoreBreakdown';
 import CompanyPicker from '@/components/CompanyPicker';
 import { TEMP_LABELS, TEMP_COLORS, Temperature } from '@/lib/temperature';
-import { PHASE_LABELS, PHASE_COLORS, PHASE_OPTIONS, LeadPhase } from '@/lib/phase';
+import { PHASE_LABELS, PHASE_COLORS, VERTRIEB_PHASE_OPTIONS, RECRUITING_PHASE_OPTIONS, LeadPhase } from '@/lib/phase';
 import { useCategory } from '@/lib/category-context';
 
 const TEMP_OPTIONS: (Temperature | '')[] = ['', 'hot', 'warm', 'cold'];
@@ -91,6 +91,8 @@ export default function HomePage() {
   const [phaseFilter, setPhaseFilter] = useState<LeadPhase | ''>('');
   const [tempFilter, setTempFilter] = useState<Temperature | ''>('');
   const [groupFilter, setGroupFilter] = useState(''); // companyId or templateId
+  const [sortBy, setSortBy] = useState('score');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState(false);
   const [groupOptions, setGroupOptions] = useState<{ id: string; name: string }[]>([]);
@@ -133,6 +135,8 @@ export default function HomePage() {
     params.set('category', category);
     params.set('page', String(page));
     params.set('pageSize', String(pageSize));
+    params.set('sortBy', sortBy);
+    params.set('sortDir', sortDir);
     if (phaseFilter === 'ARCHIVIERT') params.set('archived', 'true');
     if (groupFilter) {
       if (category === 'RECRUITING') params.set('templateId', groupFilter);
@@ -143,7 +147,7 @@ export default function HomePage() {
     setLeads(data.leads);
     setTotalCount(data.totalCount);
     setLoading(false);
-  }, [search, phaseFilter, tempFilter, category, groupFilter, page, pageSize]);
+  }, [search, phaseFilter, tempFilter, category, groupFilter, page, pageSize, sortBy, sortDir]);
 
   useEffect(() => {
     if (authStatus !== 'authenticated') return;
@@ -309,7 +313,7 @@ export default function HomePage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue min-w-0"
             >
               <option value="">Alle Phasen</option>
-              {PHASE_OPTIONS.map((p) => (
+              {(isRecruiting ? RECRUITING_PHASE_OPTIONS : VERTRIEB_PHASE_OPTIONS).map((p) => (
                 <option key={p} value={p}>{PHASE_LABELS[p]}</option>
               ))}
             </select>
@@ -378,7 +382,7 @@ export default function HomePage() {
         {/* Table */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-0">
+            <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   {bulkAction && (
@@ -394,13 +398,33 @@ export default function HomePage() {
                       </button>
                     </th>
                   )}
-                  <th className="px-3 sm:px-5 py-3">Score</th>
-                  <th className="px-3 sm:px-5 py-3">Name</th>
-                  {!isRecruiting && <th className="px-3 sm:px-5 py-3 hidden sm:table-cell">Firma</th>}
-                  <th className="px-3 sm:px-5 py-3">Phase</th>
-                  <th className="px-3 sm:px-5 py-3 hidden md:table-cell">Opportunities</th>
-                  <th className="px-3 sm:px-5 py-3 hidden md:table-cell">Letzter Kontakt</th>
-                  {isAdmin && <th className="px-3 sm:px-5 py-3 hidden lg:table-cell">Zugewiesen</th>}
+                  {[
+                    { key: 'score', label: 'Score', cls: 'w-20' },
+                    { key: 'name', label: 'Name', cls: 'min-w-[140px] max-w-[220px]' },
+                    ...(!isRecruiting ? [{ key: 'company', label: 'Firma', cls: 'hidden sm:table-cell min-w-[120px] max-w-[200px]' }] : []),
+                    { key: 'phase', label: 'Phase', cls: 'w-32' },
+                    { key: '', label: 'Opportunities', cls: 'hidden md:table-cell w-28' },
+                    { key: 'lastContactedAt', label: 'Letzter Kontakt', cls: 'hidden md:table-cell w-36' },
+                    ...(isAdmin ? [{ key: '', label: 'Zugewiesen', cls: 'hidden lg:table-cell w-32' }] : []),
+                  ].map(col => (
+                    <th
+                      key={col.label}
+                      className={`px-3 sm:px-5 py-3 ${col.cls} ${col.key ? 'cursor-pointer select-none hover:text-tc-dark transition' : ''}`}
+                      onClick={col.key ? () => {
+                        if (sortBy === col.key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                        else { setSortBy(col.key); setSortDir(col.key === 'score' ? 'desc' : 'asc'); }
+                        setPage(1);
+                      } : undefined}
+                    >
+                      <span className="flex items-center gap-1">
+                        {col.label}
+                        {col.key && (sortBy === col.key
+                          ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)
+                          : <ArrowUpDown size={10} className="opacity-30" />
+                        )}
+                      </span>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -451,15 +475,15 @@ export default function HomePage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-3 sm:px-5 py-3.5 font-medium text-gray-900">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate max-w-[120px] sm:max-w-none">{`${lead.firstName} ${lead.lastName}`.trim()}</span>
+                      <td className="px-3 sm:px-5 py-3.5 font-medium text-gray-900 truncate">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="truncate">{`${lead.firstName} ${lead.lastName}`.trim()}</span>
                           {lead.hasOverdueTasks && (
                             <AlertCircle size={13} className="text-red-500 shrink-0" aria-label="Überfällige Aufgaben" />
                           )}
                         </div>
                       </td>
-                      {!isRecruiting && <td className="px-3 sm:px-5 py-3.5 text-gray-500 hidden sm:table-cell">{lead.companyRef?.name ?? '–'}</td>}
+                      {!isRecruiting && <td className="px-3 sm:px-5 py-3.5 text-gray-500 hidden sm:table-cell truncate">{lead.companyRef?.name ?? '–'}</td>}
                       <td className="px-3 sm:px-5 py-3.5">
                         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${PHASE_COLORS[lead.phase] ?? ''}`}>
                           {PHASE_LABELS[lead.phase] ?? lead.phase}
