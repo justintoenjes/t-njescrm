@@ -87,12 +87,17 @@ export async function GET(request: NextRequest) {
   // Sorting
   const sortBy = searchParams.get('sortBy') ?? 'score';
   const sortDir = searchParams.get('sortDir') === 'asc' ? 1 : -1;
+  const nameOrder = searchParams.get('nameOrder') ?? 'lastFirst';
 
   withScores.sort((a, b) => {
     let cmp = 0;
     switch (sortBy) {
       case 'name':
-        cmp = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'de');
+        if (nameOrder === 'firstLast') {
+          cmp = `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'de');
+        } else {
+          cmp = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'de');
+        }
         break;
       case 'company':
         cmp = (a.companyRef?.name ?? '').localeCompare(b.companyRef?.name ?? '', 'de');

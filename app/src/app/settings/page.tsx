@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Save, Phone, Mail, User } from 'lucide-react';
+import { Save, Phone, Mail, User, ArrowRightLeft } from 'lucide-react';
 import Header from '@/components/Header';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
+  const [nameOrder, setNameOrder] = useState('lastFirst');
+  const [nameOrderSaved, setNameOrderSaved] = useState(false);
   const [dialMethod, setDialMethod] = useState('tel');
   const [dialSaved, setDialSaved] = useState(false);
   const [emailSignature, setEmailSignature] = useState('');
@@ -24,10 +26,22 @@ export default function SettingsPage() {
   useEffect(() => {
     if (status !== 'authenticated') return;
     fetch('/api/profile').then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => {
+      if (data.nameOrder) setNameOrder(data.nameOrder);
       if (data.dialMethod) setDialMethod(data.dialMethod);
       if (data.emailSignature !== undefined) setEmailSignature(data.emailSignature);
     }).catch(() => {});
   }, [status]);
+
+  async function saveNameOrder(order: string) {
+    setNameOrder(order);
+    await fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nameOrder: order }),
+    });
+    setNameOrderSaved(true);
+    setTimeout(() => setNameOrderSaved(false), 2000);
+  }
 
   async function saveDialMethod(method: string) {
     setDialMethod(method);
@@ -55,6 +69,33 @@ export default function SettingsPage() {
             <h1 className="text-lg font-bold text-gray-900">Mein Profil</h1>
             <p className="text-sm text-gray-500">{session?.user?.name} · {session?.user?.email}</p>
           </div>
+        </div>
+
+        {/* Name Order */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-tc-blue/20 p-2 rounded-lg">
+              <ArrowRightLeft size={20} className="text-tc-blue" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-gray-900">Namensanzeige</h2>
+              <p className="text-sm text-gray-500">Reihenfolge in der Leads-Tabelle</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => saveNameOrder('lastFirst')}
+              className={`px-4 py-2 text-sm rounded-lg border transition ${nameOrder === 'lastFirst' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              Nachname Vorname
+            </button>
+            <button onClick={() => saveNameOrder('firstLast')}
+              className={`px-4 py-2 text-sm rounded-lg border transition ${nameOrder === 'firstLast' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              Vorname Nachname
+            </button>
+          </div>
+          <p className="text-xs text-gray-400">
+            Bestimmt auch die Sortierung nach Name.
+          </p>
+          {nameOrderSaved && <span className="text-green-600 text-sm font-medium">✓ Gespeichert</span>}
         </div>
 
         {/* Dial Method */}

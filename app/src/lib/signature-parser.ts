@@ -228,10 +228,21 @@ export function parseSignature(htmlBody: string, options?: ParseOptions): Parsed
  * Split a display name into firstName / lastName.
  * "Max Mustermann" → ["Max", "Mustermann"]
  * "Anna Maria Schmidt" → ["Anna Maria", "Schmidt"]
+ * "Mustermann, Max" → ["Max", "Mustermann"]
  * "Max" → ["Max", ""]
  */
 export function splitName(fullName: string): { firstName: string; lastName: string } {
   const name = fullName.trim();
+
+  // Handle "Nachname, Vorname" format
+  if (name.includes(',')) {
+    const [last, ...rest] = name.split(',');
+    const first = rest.join(',').trim();
+    if (first && last.trim()) {
+      return { firstName: first, lastName: last.trim() };
+    }
+  }
+
   const lastSpace = name.lastIndexOf(' ');
   if (lastSpace > 0) {
     return {

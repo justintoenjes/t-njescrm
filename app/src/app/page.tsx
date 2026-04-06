@@ -93,6 +93,7 @@ export default function HomePage() {
   const [groupFilter, setGroupFilter] = useState(''); // companyId or templateId
   const [sortBy, setSortBy] = useState('score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [nameOrder, setNameOrder] = useState<'firstLast' | 'lastFirst'>('lastFirst');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState(false);
   const [groupOptions, setGroupOptions] = useState<{ id: string; name: string }[]>([]);
@@ -110,10 +111,14 @@ export default function HomePage() {
   }, [authStatus, router]);
 
   useEffect(() => {
+    if (authStatus !== 'authenticated') return;
+    fetch('/api/profile').then(r => r.json()).then(data => {
+      if (data.nameOrder) setNameOrder(data.nameOrder);
+    }).catch(() => {});
     if (isAdmin) {
       fetch('/api/users').then((r) => r.json()).then(setUsers);
     }
-  }, [isAdmin]);
+  }, [isAdmin, authStatus]);
 
   // Fetch group filter options (companies or stellen)
   useEffect(() => {
@@ -137,6 +142,7 @@ export default function HomePage() {
     params.set('pageSize', String(pageSize));
     params.set('sortBy', sortBy);
     params.set('sortDir', sortDir);
+    params.set('nameOrder', nameOrder);
     if (phaseFilter === 'ARCHIVIERT') params.set('archived', 'true');
     if (groupFilter) {
       if (category === 'RECRUITING') params.set('templateId', groupFilter);
@@ -147,7 +153,7 @@ export default function HomePage() {
     setLeads(data.leads);
     setTotalCount(data.totalCount);
     setLoading(false);
-  }, [search, phaseFilter, tempFilter, category, groupFilter, page, pageSize, sortBy, sortDir]);
+  }, [search, phaseFilter, tempFilter, category, groupFilter, page, pageSize, sortBy, sortDir, nameOrder]);
 
   useEffect(() => {
     if (authStatus !== 'authenticated') return;
@@ -382,7 +388,7 @@ export default function HomePage() {
         {/* Table */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm table-fixed">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   {bulkAction && (
@@ -400,12 +406,12 @@ export default function HomePage() {
                   )}
                   {[
                     { key: 'score', label: 'Score', cls: 'w-20' },
-                    { key: 'name', label: 'Name', cls: 'min-w-[140px] max-w-[220px]' },
-                    ...(!isRecruiting ? [{ key: 'company', label: 'Firma', cls: 'hidden sm:table-cell min-w-[120px] max-w-[200px]' }] : []),
-                    { key: 'phase', label: 'Phase', cls: 'w-32' },
-                    { key: '', label: 'Opportunities', cls: 'hidden md:table-cell w-28' },
-                    { key: 'lastContactedAt', label: 'Letzter Kontakt', cls: 'hidden md:table-cell w-36' },
-                    ...(isAdmin ? [{ key: '', label: 'Zugewiesen', cls: 'hidden lg:table-cell w-32' }] : []),
+                    { key: 'name', label: 'Name', cls: '' },
+                    ...(!isRecruiting ? [{ key: 'company', label: 'Firma', cls: 'hidden sm:table-cell' }] : []),
+                    { key: 'phase', label: 'Phase', cls: '' },
+                    { key: '', label: 'Opportunities', cls: 'hidden md:table-cell' },
+                    { key: 'lastContactedAt', label: 'Letzter Kontakt', cls: 'hidden md:table-cell' },
+                    ...(isAdmin ? [{ key: '', label: 'Zugewiesen', cls: 'hidden lg:table-cell' }] : []),
                   ].map(col => (
                     <th
                       key={col.label}
@@ -475,15 +481,15 @@ export default function HomePage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-3 sm:px-5 py-3.5 font-medium text-gray-900 truncate">
+                      <td className="px-3 sm:px-5 py-3.5 font-medium text-gray-900">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="truncate">{`${lead.firstName} ${lead.lastName}`.trim()}</span>
+                          <span className="truncate">{nameOrder === 'firstLast' ? `${lead.firstName} ${lead.lastName}`.trim() : `${lead.lastName} ${lead.firstName}`.trim()}</span>
                           {lead.hasOverdueTasks && (
                             <AlertCircle size={13} className="text-red-500 shrink-0" aria-label="Überfällige Aufgaben" />
                           )}
                         </div>
                       </td>
-                      {!isRecruiting && <td className="px-3 sm:px-5 py-3.5 text-gray-500 hidden sm:table-cell truncate">{lead.companyRef?.name ?? '–'}</td>}
+                      {!isRecruiting && <td className="px-3 sm:px-5 py-3.5 text-gray-500 hidden sm:table-cell">{lead.companyRef?.name ?? '–'}</td>}
                       <td className="px-3 sm:px-5 py-3.5">
                         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${PHASE_COLORS[lead.phase] ?? ''}`}>
                           {PHASE_LABELS[lead.phase] ?? lead.phase}
