@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Plus, Trash2, Package, Briefcase, X, Save, ChevronDown, ChevronRight, Users } from 'lucide-react';
+import { Plus, Trash2, Package, Briefcase, X, Save, ChevronDown, ChevronRight, Users, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Header from '@/components/Header';
 import LeadModal, { LeadFull } from '@/components/LeadModal';
 import OpportunityModal from '@/components/OpportunityModal';
@@ -62,6 +62,8 @@ export default function TemplatesPage() {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [sortBy, setSortBy] = useState('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const isRecruiting = category === 'RECRUITING';
   const label = isRecruiting ? 'Stellen' : 'Produkte';
@@ -187,6 +189,21 @@ export default function TemplatesPage() {
 
   const colCount = isRecruiting ? (isAdmin ? 6 : 5) : (isAdmin ? 4 : 3);
 
+  const sorted = [...templates].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    switch (sortBy) {
+      case 'name': return a.name.localeCompare(b.name, 'de') * dir;
+      case 'value': return ((a.defaultValue ?? 0) - (b.defaultValue ?? 0)) * dir;
+      case 'count': return ((isRecruiting ? a.candidateCount : a._count.opportunities) - (isRecruiting ? b.candidateCount : b._count.opportunities)) * dir;
+      default: return 0;
+    }
+  });
+
+  function handleSort(key: string) {
+    if (sortBy === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(key); setSortDir(key === 'name' ? 'asc' : 'desc'); }
+  }
+
   if (authStatus === 'loading') return null;
 
   return (
@@ -222,16 +239,28 @@ export default function TemplatesPage() {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 {isRecruiting && <th className="px-3 py-3 w-8"></th>}
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">{isRecruiting ? 'Gehalt' : 'Wert'} (€)</th>
-                {isRecruiting ? (
-                  <>
-                    <th className="px-4 py-3">Kandidaten</th>
-                    <th className="px-4 py-3">Phasen-Verteilung</th>
-                  </>
-                ) : (
-                  <th className="px-4 py-3">Verwendet</th>
-                )}
+                {[
+                  { key: 'name', label: 'Name' },
+                  { key: 'value', label: `${isRecruiting ? 'Gehalt' : 'Wert'} (€)` },
+                  ...(isRecruiting
+                    ? [{ key: 'count', label: 'Kandidaten' }, { key: '', label: 'Phasen-Verteilung' }]
+                    : [{ key: 'count', label: 'Verwendet' }]
+                  ),
+                ].map(col => (
+                  <th
+                    key={col.label}
+                    className={`px-4 py-3 ${col.key ? 'cursor-pointer select-none hover:text-tc-dark transition' : ''}`}
+                    onClick={col.key ? () => handleSort(col.key) : undefined}
+                  >
+                    <span className="flex items-center gap-1">
+                      {col.label}
+                      {col.key && (sortBy === col.key
+                        ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)
+                        : <ArrowUpDown size={10} className="opacity-30" />
+                      )}
+                    </span>
+                  </th>
+                ))}
                 {isAdmin && <th className="px-4 py-3 w-20"></th>}
               </tr>
             </thead>
@@ -242,7 +271,7 @@ export default function TemplatesPage() {
               {!loading && templates.length === 0 && (
                 <tr><td colSpan={colCount} className="text-center py-12 text-gray-400">Keine {label} angelegt</td></tr>
               )}
-              {templates.map(t => {
+              {sorted.map(t => {
                 const isExpanded = expandedId === t.id && isRecruiting;
                 return (
                   <>

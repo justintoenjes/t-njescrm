@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Search, Plus, Building2, Users, Briefcase, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Plus, Building2, Users, Briefcase, ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Header from '@/components/Header';
 import CompanyDetailModal from '@/components/CompanyDetailModal';
 import LeadModal, { LeadFull } from '@/components/LeadModal';
@@ -58,6 +58,8 @@ export default function CompaniesPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedData, setExpandedData] = useState<CompanyDetail | null>(null);
   const [expandedLoading, setExpandedLoading] = useState(false);
+  const [sortBy, setSortBy] = useState('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const isAdmin = session?.user?.role === 'ADMIN';
 
   useEffect(() => {
@@ -123,6 +125,22 @@ export default function CompaniesPage() {
 
   const TEMP_DOT: Record<Temperature, string> = { hot: 'bg-red-500', warm: 'bg-amber-400', cold: 'bg-blue-400' };
 
+  const sorted = [...companies].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    switch (sortBy) {
+      case 'name': return a.name.localeCompare(b.name, 'de') * dir;
+      case 'leadCount': return (a.leadCount - b.leadCount) * dir;
+      case 'activeOppCount': return (a.activeOppCount - b.activeOppCount) * dir;
+      case 'pipelineValue': return (a.totalPipelineValue - b.totalPipelineValue) * dir;
+      default: return 0;
+    }
+  });
+
+  function handleSort(key: string) {
+    if (sortBy === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(key); setSortDir(key === 'name' ? 'asc' : 'desc'); }
+  }
+
   if (authStatus === 'loading') return null;
 
   return (
@@ -153,12 +171,28 @@ export default function CompaniesPage() {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 <th className="px-3 py-3 w-8"></th>
-                <th className="px-3 py-3">Firma</th>
-                <th className="px-3 py-3">Kontakte</th>
-                <th className="px-3 py-3">Aktive Opps</th>
-                <th className="px-3 py-3">Pipeline-Wert</th>
-                <th className="px-3 py-3">Beste Phase</th>
-                <th className="px-3 py-3">Temperatur</th>
+                {[
+                  { key: 'name', label: 'Firma' },
+                  { key: 'leadCount', label: 'Kontakte' },
+                  { key: 'activeOppCount', label: 'Aktive Opps' },
+                  { key: 'pipelineValue', label: 'Pipeline-Wert' },
+                  { key: '', label: 'Beste Phase' },
+                  { key: '', label: 'Temperatur' },
+                ].map(col => (
+                  <th
+                    key={col.label}
+                    className={`px-3 py-3 ${col.key ? 'cursor-pointer select-none hover:text-tc-dark transition' : ''}`}
+                    onClick={col.key ? () => handleSort(col.key) : undefined}
+                  >
+                    <span className="flex items-center gap-1">
+                      {col.label}
+                      {col.key && (sortBy === col.key
+                        ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)
+                        : <ArrowUpDown size={10} className="opacity-30" />
+                      )}
+                    </span>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -168,7 +202,7 @@ export default function CompaniesPage() {
               {!loading && companies.length === 0 && (
                 <tr><td colSpan={7} className="text-center py-12 text-gray-400">Keine Firmen gefunden</td></tr>
               )}
-              {companies.map((c) => {
+              {sorted.map((c) => {
                 const isExpanded = expandedId === c.id;
                 return (
                   <>
