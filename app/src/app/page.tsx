@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Search, Plus, Download, Upload, AlertCircle, Briefcase, FileText, Mail } from 'lucide-react';
+import { Search, Plus, Download, Upload, AlertCircle, Briefcase, FileText, Mail, CheckSquare, Square, Archive, UserPlus, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import LeadModal, { LeadFull } from '@/components/LeadModal';
 import Header from '@/components/Header';
 import ImportModal from '@/components/ImportModal';
@@ -21,6 +21,61 @@ type UserOption = { id: string; name: string; email: string };
 type Duplicate = { id: string; firstName: string; lastName: string; matchedBy: string };
 const emptyForm = { firstName: '', lastName: '', companyId: '', companyName: '', email: '', phone: '', assignedToId: '', cvFile: null as File | null };
 
+function BulkActionBar({ selectedCount, selectedIds, users, isAdmin, isRecruiting, onDone }: {
+  selectedCount: number;
+  selectedIds: Set<string>;
+  users: UserOption[];
+  isAdmin: boolean;
+  isRecruiting: boolean;
+  onDone: () => void;
+}) {
+  const [executing, setExecuting] = useState(false);
+
+  async function execute(action: string, value?: string) {
+    setExecuting(true);
+    try {
+      const res = await fetch('/api/leads/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds), action, value }),
+      });
+      if (res.ok) onDone();
+    } finally {
+      setExecuting(false);
+    }
+  }
+
+  return (
+    <div className="bg-tc-blue/5 border border-tc-blue/20 rounded-xl px-4 py-3 flex flex-wrap items-center gap-3">
+      <span className="text-sm font-medium text-tc-blue">
+        {selectedCount} ausgewählt
+      </span>
+      <div className="flex flex-wrap gap-2">
+        {isAdmin && (
+          <select
+            disabled={executing}
+            onChange={(e) => { if (e.target.value) execute('assign', e.target.value); e.target.value = ''; }}
+            className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-tc-blue"
+          >
+            <option value="">Zuweisen…</option>
+            {users.map(u => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </select>
+        )}
+        <button
+          disabled={executing}
+          onClick={() => execute('archive')}
+          className="flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+        >
+          <Archive size={14} /> Archivieren
+        </button>
+      </div>
+      {executing && <span className="text-xs text-gray-400 animate-pulse">Wird ausgeführt…</span>}
+    </div>
+  );
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { data: session, status: authStatus } = useSession();
@@ -28,11 +83,16 @@ export default function HomePage() {
   const { category } = useCategory();
 
   const [leads, setLeads] = useState<LeadRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(50);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [phaseFilter, setPhaseFilter] = useState<LeadPhase | ''>('');
   const [tempFilter, setTempFilter] = useState<Temperature | ''>('');
   const [groupFilter, setGroupFilter] = useState(''); // companyId or templateId
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState(false);
   const [groupOptions, setGroupOptions] = useState<{ id: string; name: string }[]>([]);
   const [selected, setSelected] = useState<LeadFull | null>(null);
   const [loadingLead, setLoadingLead] = useState<string | null>(null);
@@ -71,15 +131,19 @@ export default function HomePage() {
     if (phaseFilter) params.set('phase', phaseFilter);
     if (tempFilter) params.set('temperature', tempFilter);
     params.set('category', category);
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
     if (phaseFilter === 'ARCHIVIERT') params.set('archived', 'true');
     if (groupFilter) {
       if (category === 'RECRUITING') params.set('templateId', groupFilter);
       else params.set('companyId', groupFilter);
     }
     const res = await fetch(`/api/leads?${params}`);
-    setLeads(await res.json());
+    const data = await res.json();
+    setLeads(data.leads);
+    setTotalCount(data.totalCount);
     setLoading(false);
-  }, [search, phaseFilter, tempFilter, category, groupFilter]);
+  }, [search, phaseFilter, tempFilter, category, groupFilter, page, pageSize]);
 
   useEffect(() => {
     if (authStatus !== 'authenticated') return;
@@ -235,13 +299,13 @@ export default function HomePage() {
                 type="text"
                 placeholder="Suche…"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue w-full sm:w-52"
               />
             </div>
             <select
               value={phaseFilter}
-              onChange={(e) => setPhaseFilter(e.target.value as LeadPhase | '')}
+              onChange={(e) => { setPhaseFilter(e.target.value as LeadPhase | ''); setPage(1); }}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue min-w-0"
             >
               <option value="">Alle Phasen</option>
@@ -251,7 +315,7 @@ export default function HomePage() {
             </select>
             <select
               value={tempFilter}
-              onChange={(e) => setTempFilter(e.target.value as Temperature | '')}
+              onChange={(e) => { setTempFilter(e.target.value as Temperature | ''); setPage(1); }}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue min-w-0"
             >
               {TEMP_OPTIONS.map((t) => (
@@ -261,7 +325,7 @@ export default function HomePage() {
             {groupOptions.length > 0 && (
               <select
                 value={groupFilter}
-                onChange={(e) => setGroupFilter(e.target.value)}
+                onChange={(e) => { setGroupFilter(e.target.value); setPage(1); }}
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue col-span-2 sm:col-span-1 min-w-0"
               >
                 <option value="">{category === 'RECRUITING' ? 'Alle Stellen' : 'Alle Firmen'}</option>
@@ -272,6 +336,12 @@ export default function HomePage() {
             )}
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={() => { setBulkAction(!bulkAction); setSelectedIds(new Set()); }}
+              className={`flex items-center gap-1.5 border text-sm font-medium px-3 py-2 rounded-lg transition ${bulkAction ? 'border-tc-blue bg-tc-blue/10 text-tc-blue' : 'border-gray-200 hover:bg-gray-50 text-gray-700'}`}
+            >
+              <CheckSquare size={15} /> <span className="hidden sm:inline">Auswahl</span>
+            </button>
             <button
               onClick={() => setShowImport(true)}
               className="flex items-center gap-1.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium px-3 py-2 rounded-lg transition"
@@ -293,12 +363,37 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Bulk Action Bar */}
+        {bulkAction && selectedIds.size > 0 && (
+          <BulkActionBar
+            selectedCount={selectedIds.size}
+            selectedIds={selectedIds}
+            users={users}
+            isAdmin={isAdmin}
+            isRecruiting={isRecruiting}
+            onDone={() => { setSelectedIds(new Set()); fetchLeads(); }}
+          />
+        )}
+
         {/* Table */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-0">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {bulkAction && (
+                    <th className="px-3 py-3 w-8">
+                      <button
+                        onClick={() => {
+                          if (selectedIds.size === leads.length) setSelectedIds(new Set());
+                          else setSelectedIds(new Set(leads.map(l => l.id)));
+                        }}
+                        className="text-gray-400 hover:text-tc-blue transition"
+                      >
+                        {selectedIds.size === leads.length && leads.length > 0 ? <CheckSquare size={16} /> : <Square size={16} />}
+                      </button>
+                    </th>
+                  )}
                   <th className="px-3 sm:px-5 py-3">Score</th>
                   <th className="px-3 sm:px-5 py-3">Name</th>
                   {!isRecruiting && <th className="px-3 sm:px-5 py-3 hidden sm:table-cell">Firma</th>}
@@ -310,19 +405,35 @@ export default function HomePage() {
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan={(isAdmin ? 7 : 6) - (isRecruiting ? 1 : 0)} className="text-center py-12 text-gray-400">Laden…</td></tr>
+                  <tr><td colSpan={(isAdmin ? 7 : 6) - (isRecruiting ? 1 : 0) + (bulkAction ? 1 : 0)} className="text-center py-12 text-gray-400">Laden…</td></tr>
                 )}
                 {!loading && leads.length === 0 && (
-                  <tr><td colSpan={(isAdmin ? 7 : 6) - (isRecruiting ? 1 : 0)} className="text-center py-12 text-gray-400">Keine Leads gefunden</td></tr>
+                  <tr><td colSpan={(isAdmin ? 7 : 6) - (isRecruiting ? 1 : 0) + (bulkAction ? 1 : 0)} className="text-center py-12 text-gray-400">Keine Leads gefunden</td></tr>
                 )}
                 {leads.map((lead) => {
                   const activeOppCount = lead.opportunities?.filter(o => o.stage !== 'WON' && o.stage !== 'LOST').length ?? 0;
                   return (
                     <tr
                       key={lead.id}
-                      onClick={() => !loadingLead && openLead(lead)}
-                      className={`border-b border-gray-100 hover:bg-tc-blue/10 cursor-pointer transition ${loadingLead === lead.id ? 'opacity-60' : ''}`}
+                      onClick={() => {
+                        if (bulkAction) {
+                          setSelectedIds(prev => {
+                            const next = new Set(prev);
+                            if (next.has(lead.id)) next.delete(lead.id);
+                            else next.add(lead.id);
+                            return next;
+                          });
+                        } else if (!loadingLead) {
+                          openLead(lead);
+                        }
+                      }}
+                      className={`border-b border-gray-100 hover:bg-tc-blue/10 cursor-pointer transition ${loadingLead === lead.id ? 'opacity-60' : ''} ${selectedIds.has(lead.id) ? 'bg-tc-blue/5' : ''}`}
                     >
+                      {bulkAction && (
+                        <td className="px-3 py-3.5 w-8">
+                          {selectedIds.has(lead.id) ? <CheckSquare size={16} className="text-tc-blue" /> : <Square size={16} className="text-gray-300" />}
+                        </td>
+                      )}
                       <td className="px-3 sm:px-5 py-3.5">
                         {lead.scoreBreakdown ? (
                           <ScoreBreakdownPopover
@@ -374,8 +485,34 @@ export default function HomePage() {
             </table>
           </div>
           {!loading && (
-            <div className="px-3 sm:px-5 py-2 border-t border-gray-100 text-xs text-gray-400">
-              {leads.length} {isRecruiting ? 'Kandidat' : 'Lead'}{leads.length !== 1 ? 'en' : ''}
+            <div className="px-3 sm:px-5 py-2 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-xs text-gray-400">
+                {totalCount > pageSize
+                  ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, totalCount)} von ${totalCount}`
+                  : `${totalCount} ${isRecruiting ? 'Kandidat' : 'Lead'}${totalCount !== 1 ? 'en' : ''}`
+                }
+              </span>
+              {totalCount > pageSize && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 transition"
+                  >
+                    <ChevronLeft size={14} className="text-gray-500" />
+                  </button>
+                  <span className="text-xs text-gray-500 px-1">
+                    {page} / {Math.ceil(totalCount / pageSize)}
+                  </span>
+                  <button
+                    onClick={() => setPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
+                    disabled={page >= Math.ceil(totalCount / pageSize)}
+                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 transition"
+                  >
+                    <ChevronRight size={14} className="text-gray-500" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -66,6 +66,11 @@ model Lead {
   tasks            Task[]
   attachments      Attachment[]
   emails           Email[]
+
+  @@index([assignedToId])
+  @@index([companyId])
+  @@index([archived, category])
+  @@index([createdAt])
 }
 
 model ProductTemplate {
@@ -99,6 +104,10 @@ model Opportunity {
   notes             Note[]
   tasks             Task[]
   attachments       Attachment[]
+
+  @@index([leadId])
+  @@index([stage])
+  @@index([assignedToId])
 }
 
 model Note {
@@ -112,6 +121,9 @@ model Note {
   opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   authorId      String?
   author        User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([opportunityId])
 }
 
 model Task {
@@ -126,6 +138,10 @@ model Task {
   opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   assignedToId  String?
   assignedTo    User?        @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([dueDate])
+  @@index([assignedToId])
 }
 
 model Attachment {
@@ -160,6 +176,8 @@ model Email {
   lead            Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@unique([graphMessageId, leadId])
+  @@index([leadId])
+  @@index([receivedAt])
 }
 
 model GlobalConfig {

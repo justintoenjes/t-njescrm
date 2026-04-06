@@ -90,7 +90,14 @@ export async function GET(request: NextRequest) {
   let result = withScores;
   if (phaseFilter) result = result.filter(l => l.phase === phaseFilter);
   if (tempFilter) result = result.filter(l => l.temperature === tempFilter);
-  return NextResponse.json(result);
+
+  // Pagination (applied after computed filters)
+  const page = parseInt(searchParams.get('page') ?? '1');
+  const pageSize = parseInt(searchParams.get('pageSize') ?? '50');
+  const totalCount = result.length;
+  const paged = result.slice((page - 1) * pageSize, page * pageSize);
+
+  return NextResponse.json({ leads: paged, totalCount, page, pageSize });
 }
 
 export async function POST(request: NextRequest) {

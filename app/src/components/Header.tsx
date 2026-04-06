@@ -4,7 +4,7 @@ import Link from 'next/link';
 /* eslint-disable @next/next/no-img-element */
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { LayoutDashboard, Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User } from 'lucide-react';
+import { LayoutDashboard, Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3 } from 'lucide-react';
 import { useCategory } from '@/lib/category-context';
 
 type NavItem = { href: string; label: string | ((cat: string) => string); icon: typeof LayoutDashboard; vertriebOnly: boolean };
@@ -15,6 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/pipeline',   label: 'Pipeline', icon: Kanban,         vertriebOnly: false },
   { href: '/templates',  label: (cat) => cat === 'RECRUITING' ? 'Stellen' : 'Produkte', icon: Package, vertriebOnly: false },
   { href: '/tasks',      label: 'Aufgaben', icon: CheckSquare,    vertriebOnly: false },
+  { href: '/reports',    label: 'Reports',  icon: BarChart3,      vertriebOnly: false },
 ];
 
 export default function Header() {

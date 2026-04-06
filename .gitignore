@@ -7,3 +7,4 @@ app/.next/
 certs/
 app/tsconfig.tsbuildinfo
 .deploy-timing.log
+.deploy-stats
