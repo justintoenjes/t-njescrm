@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Search, Plus, Download, Upload, AlertCircle, Briefcase, FileText, Mail, CheckSquare, Square, Archive, UserPlus, ArrowRight, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import LeadModal, { LeadFull } from '@/components/LeadModal';
@@ -78,7 +78,6 @@ function BulkActionBar({ selectedCount, selectedIds, users, isAdmin, isRecruitin
 
 export default function HomePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { data: session, status: authStatus } = useSession();
   const isAdmin = session?.user?.role === 'ADMIN';
   const { category } = useCategory();
@@ -172,13 +171,14 @@ export default function HomePage() {
 
   // Open lead from ?open= query parameter (e.g. from global search)
   useEffect(() => {
-    const openId = searchParams.get('open');
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get('open');
     if (!openId || authStatus !== 'authenticated') return;
     fetch(`/api/leads/${openId}`).then(r => r.json()).then((full: LeadFull) => {
       setSelected(full);
-      router.replace('/leads', { scroll: false });
+      window.history.replaceState(null, '', '/leads');
     }).catch(() => {});
-  }, [searchParams, authStatus, router]);
+  }, [authStatus]);
 
   // Duplicate check when email or phone changes
   useEffect(() => {

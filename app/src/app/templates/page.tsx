@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Plus, Trash2, Package, Briefcase, X, Save, ChevronDown, ChevronRight, Users, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Header from '@/components/Header';
@@ -45,7 +45,6 @@ type TemplateDetail = {
 
 export default function TemplatesPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { data: session, status: authStatus } = useSession();
   const { category } = useCategory();
   const isAdmin = session?.user?.role === 'ADMIN';
@@ -76,11 +75,12 @@ export default function TemplatesPage() {
 
   // Open template from ?open= query parameter (e.g. from global search)
   useEffect(() => {
-    const openId = searchParams.get('open');
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get('open');
     if (!openId || authStatus !== 'authenticated') return;
     setSelectedTemplateId(openId);
-    router.replace('/templates', { scroll: false });
-  }, [searchParams, authStatus, router]);
+    window.history.replaceState(null, '', '/templates');
+  }, [authStatus]);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
