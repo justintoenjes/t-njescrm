@@ -22,8 +22,8 @@ export default function OpportunitiesSection({ lead, state, collapsed, onToggle 
     templates, isRecruiting,
   } = state;
 
-  const oppLabel = isRecruiting ? 'Bewerbungen' : 'Opportunities';
-  const oppLabelSingular = isRecruiting ? 'Bewerbung' : 'Opportunity';
+  const oppLabel = isRecruiting ? 'Bewerbungen' : 'Anfragen';
+  const oppLabelSingular = isRecruiting ? 'Bewerbung' : 'Anfrage';
 
   return (
     <div className="border border-gray-100 rounded-xl">

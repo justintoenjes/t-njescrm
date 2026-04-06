@@ -329,7 +329,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
   }
 
   async function deleteOpp() {
-    if (!opp || !confirm(`Opportunity "${opp.title}" wirklich löschen?`)) return;
+    if (!opp || !confirm(`Anfrage "${opp.title}" wirklich löschen?`)) return;
     await fetch(`/api/opportunities/${opp.id}`, { method: 'DELETE' });
     onDelete(opp.id);
     onClose();

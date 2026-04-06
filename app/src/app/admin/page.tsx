@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Save, Thermometer, UserPlus, Users, KeyRound, Mail, FileText, Shield } from 'lucide-react';
+import { Save, Thermometer, UserPlus, Users, KeyRound, Mail, FileText, Shield, Package, ArrowRight } from 'lucide-react';
 import Header from '@/components/Header';
 
 type AdminTab = 'texte' | 'benutzer';
@@ -190,6 +190,19 @@ export default function AdminPage() {
           </div>
           <h1 className="text-lg font-bold text-gray-900">Administration</h1>
         </div>
+
+        {/* Quick Links */}
+        <button
+          onClick={() => router.push('/templates')}
+          className="w-full flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-gray-200 hover:border-tc-blue/30 hover:bg-tc-blue/5 transition-colors text-left"
+        >
+          <Package size={18} className="text-gray-400" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-900">Produkte & Stellen verwalten</p>
+            <p className="text-xs text-gray-500">Vorlagen für Anfragen und Bewerbungen</p>
+          </div>
+          <ArrowRight size={16} className="text-gray-400" />
+        </button>
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200">

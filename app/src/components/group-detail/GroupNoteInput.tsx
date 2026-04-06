@@ -68,7 +68,7 @@ export default function GroupNoteInput({ targets, onAddNote }: Props) {
                   <span className={`w-2 h-2 rounded-full shrink-0 ${t.type === 'lead' ? 'bg-gray-400' : 'bg-purple-400'}`} />
                   <span className="truncate">{t.label}</span>
                   <span className="text-gray-400 ml-auto shrink-0">
-                    {t.type === 'lead' ? 'Kontakt' : 'Opp'}
+                    {t.type === 'lead' ? 'Kontakt' : 'Anfrage'}
                   </span>
                 </button>
               ))}

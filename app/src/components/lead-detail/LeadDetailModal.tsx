@@ -40,7 +40,7 @@ export default function LeadDetailModal({ lead, users, isAdmin, onClose, onUpdat
   const MOBILE_TABS: { key: MobileTab; label: string }[] = [
     { key: 'timeline', label: 'Aktivität' },
     { key: 'details', label: 'Details' },
-    { key: 'opportunities', label: `${lead.category === 'RECRUITING' ? 'Bewerbungen' : 'Opps'} (${opportunities.length})` },
+    { key: 'opportunities', label: `${lead.category === 'RECRUITING' ? 'Bewerbungen' : 'Anfragen'} (${opportunities.length})` },
     { key: 'tasks', label: 'Aufgaben' },
   ];
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   DndContext, DragEndEvent, DragOverEvent, DragStartEvent,
   PointerSensor, useSensor, useSensors, DragOverlay, closestCorners,
@@ -100,6 +100,7 @@ function Column({ stage, opps, onOpen }: { stage: OpportunityStage; opps: OppCar
 export default function PipelinePage() {
   const { status, data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isAdmin = session?.user?.role === 'ADMIN';
   const { category } = useCategory();
   const [opps, setOpps] = useState<OppCard[]>([]);
@@ -123,6 +124,14 @@ export default function PipelinePage() {
       if (isAdmin) fetch('/api/users').then(r => r.json()).then(setUsers);
     }
   }, [status, router, load, isAdmin]);
+
+  // Open opportunity from ?open= query parameter (e.g. from global search)
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || status !== 'authenticated') return;
+    setOpenOppId(openId);
+    router.replace('/pipeline', { scroll: false });
+  }, [searchParams, status, router]);
 
   const byStage = (stage: OpportunityStage) => opps.filter(o => o.stage === stage);
   const activeOpp = opps.find(o => o.id === activeId);

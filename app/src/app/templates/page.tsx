@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Plus, Trash2, Package, Briefcase, X, Save, ChevronDown, ChevronRight, Users, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Header from '@/components/Header';
@@ -45,6 +45,7 @@ type TemplateDetail = {
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status: authStatus } = useSession();
   const { category } = useCategory();
   const isAdmin = session?.user?.role === 'ADMIN';
@@ -72,6 +73,14 @@ export default function TemplatesPage() {
   useEffect(() => {
     if (authStatus === 'unauthenticated') router.push('/login');
   }, [authStatus, router]);
+
+  // Open template from ?open= query parameter (e.g. from global search)
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || authStatus !== 'authenticated') return;
+    setSelectedTemplateId(openId);
+    router.replace('/templates', { scroll: false });
+  }, [searchParams, authStatus, router]);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -219,7 +228,7 @@ export default function TemplatesPage() {
             <div>
               <h1 className="text-lg font-bold text-gray-900">{label}</h1>
               <p className="text-sm text-gray-500">
-                {isRecruiting ? 'Zentrale Stellenvorlagen für Kandidaten' : 'Zentrale Produktvorlagen für Opportunities'}
+                {isRecruiting ? 'Zentrale Stellenvorlagen für Kandidaten' : 'Zentrale Produktvorlagen für Anfragen'}
               </p>
             </div>
           </div>

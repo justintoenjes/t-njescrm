@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Search, Plus, Building2, Users, Briefcase, ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Header from '@/components/Header';
@@ -43,6 +43,7 @@ type CompanyDetail = {
 
 export default function CompaniesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status: authStatus } = useSession();
 
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
@@ -65,6 +66,14 @@ export default function CompaniesPage() {
   useEffect(() => {
     if (authStatus === 'unauthenticated') router.push('/login');
   }, [authStatus, router]);
+
+  // Open company from ?open= query parameter (e.g. from global search)
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || authStatus !== 'authenticated') return;
+    setEditId(openId);
+    router.replace('/companies', { scroll: false });
+  }, [searchParams, authStatus, router]);
 
   const fetchCompanies = useCallback(async () => {
     setLoading(true);
@@ -174,7 +183,7 @@ export default function CompaniesPage() {
                 {[
                   { key: 'name', label: 'Firma' },
                   { key: 'leadCount', label: 'Kontakte' },
-                  { key: 'activeOppCount', label: 'Aktive Opps' },
+                  { key: 'activeOppCount', label: 'Anfragen' },
                   { key: 'pipelineValue', label: 'Pipeline-Wert' },
                   { key: '', label: 'Beste Phase' },
                   { key: '', label: 'Temperatur' },
@@ -290,7 +299,7 @@ export default function CompaniesPage() {
                                   <th className="px-3 py-2">Score</th>
                                   <th className="px-3 py-2">Name</th>
                                   <th className="px-3 py-2">Phase</th>
-                                  <th className="px-3 py-2">Opps</th>
+                                  <th className="px-3 py-2">Anfragen</th>
                                   <th className="px-3 py-2">Letzter Kontakt</th>
                                   <th className="px-3 py-2">Zugewiesen</th>
                                 </tr>

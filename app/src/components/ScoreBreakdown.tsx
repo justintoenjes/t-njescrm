@@ -12,7 +12,7 @@ type Props = {
 
 const ROWS: { key: keyof Omit<ScoreBreakdown, 'total'>; name: string; max: string }[] = [
   { key: 'contactRecency', name: 'Kontakt-Aktivität', max: '30' },
-  { key: 'opportunity', name: 'Opportunities', max: '30' },
+  { key: 'opportunity', name: 'Anfragen', max: '30' },
   { key: 'aiSentiment', name: 'KI-Sentiment', max: '15' },
   { key: 'engagement', name: 'Engagement', max: '-10' },
   { key: 'phaseBonus', name: 'Phase-Bonus', max: '15' },

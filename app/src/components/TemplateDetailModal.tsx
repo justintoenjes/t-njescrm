@@ -264,7 +264,7 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
 
   const kpis = template ? [
     { label: candidatesLabel, value: template.candidateCount, color: 'bg-gray-50 text-gray-700 border-gray-200' },
-    { label: 'Aktive Opps', value: activeOpps.length, color: 'bg-teal-50 text-teal-700 border-teal-200' },
+    { label: isRecruiting ? 'Bewerbungen' : 'Anfragen', value: activeOpps.length, color: 'bg-teal-50 text-teal-700 border-teal-200' },
     { label: 'Pipeline', value: `${totalValue.toLocaleString('de-DE')} €`, color: 'bg-blue-50 text-blue-700 border-blue-200' },
     ...(wonCount > 0 ? [{ label: isRecruiting ? 'Eingestellt' : 'Gewonnen', value: wonCount, color: 'bg-green-50 text-green-700 border-green-200' }] : []),
     ...(template.defaultValue != null ? [{ label: isRecruiting ? 'Gehalt' : 'Wert', value: `${template.defaultValue.toLocaleString('de-DE')} €`, color: 'bg-purple-50 text-purple-700 border-purple-200' }] : []),

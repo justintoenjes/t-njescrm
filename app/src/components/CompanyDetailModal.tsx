@@ -148,7 +148,7 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
 
   const kpis = company ? [
     { label: 'Kontakte', value: company.leads.length, color: 'bg-gray-50 text-gray-700 border-gray-200' },
-    { label: 'Aktive Opps', value: activeOpps.length, color: 'bg-teal-50 text-teal-700 border-teal-200' },
+    { label: 'Anfragen', value: activeOpps.length, color: 'bg-teal-50 text-teal-700 border-teal-200' },
     { label: 'Pipeline', value: `${company.totalPipelineValue.toLocaleString('de-DE')} €`, color: 'bg-blue-50 text-blue-700 border-blue-200' },
     ...(wonCount > 0 ? [{ label: 'Gewonnen', value: wonCount, color: 'bg-green-50 text-green-700 border-green-200' }] : []),
     ...(lostCount > 0 ? [{ label: 'Verloren', value: lostCount, color: 'bg-red-50 text-red-700 border-red-200' }] : []),
@@ -157,7 +157,7 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
   const MOBILE_TABS: { key: MobileTab; label: string }[] = [
     { key: 'timeline', label: 'Aktivität' },
     { key: 'contacts', label: `Kontakte (${company?.leads.length ?? 0})` },
-    { key: 'opportunities', label: `Opps (${allOpps.length})` },
+    { key: 'opportunities', label: `Anfragen (${allOpps.length})` },
     { key: 'details', label: 'Details' },
   ];
 
@@ -242,7 +242,7 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
                                       {PHASE_LABELS[lead.phase]}
                                     </span>
                                     {leadActiveOpps.length > 0 && (
-                                      <span className="text-xs text-teal-600">{leadActiveOpps.length} Opp(s)</span>
+                                      <span className="text-xs text-teal-600">{leadActiveOpps.length} Anfr.</span>
                                     )}
                                   </div>
                                 </div>
@@ -257,11 +257,11 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
                   {/* Opportunities */}
                   <div className={`${mobileTab !== 'opportunities' && mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
                     <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                      Opportunities ({allOpps.length})
+                      Anfragen ({allOpps.length})
                     </h3>
                     <div className="space-y-2">
                       {allOpps.length === 0 && (
-                        <p className="text-sm text-gray-400 text-center py-4">Keine Opportunities</p>
+                        <p className="text-sm text-gray-400 text-center py-4">Keine Anfragen</p>
                       )}
                       {allOpps.map(opp => (
                         <div

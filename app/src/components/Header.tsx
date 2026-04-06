@@ -2,24 +2,26 @@
 
 import Link from 'next/link';
 /* eslint-disable @next/next/no-img-element */
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { LayoutDashboard, Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3 } from 'lucide-react';
+import { Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3 } from 'lucide-react';
 import { useCategory } from '@/lib/category-context';
+import GlobalSearch from '@/components/GlobalSearch';
+import type { LucideIcon } from 'lucide-react';
 
-type NavItem = { href: string; label: string | ((cat: string) => string); icon: typeof LayoutDashboard; vertriebOnly: boolean };
+type NavItem = { href: string; label: string; icon: LucideIcon; vertriebOnly?: boolean; recruitingOnly?: boolean; separator?: boolean };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/',           label: (cat) => cat === 'RECRUITING' ? 'Kandidaten' : 'Leads', icon: LayoutDashboard, vertriebOnly: false },
-  { href: '/companies',  label: 'Firmen',   icon: Building2,      vertriebOnly: true },
-  { href: '/pipeline',   label: 'Pipeline', icon: Kanban,         vertriebOnly: false },
-  { href: '/templates',  label: (cat) => cat === 'RECRUITING' ? 'Stellen' : 'Produkte', icon: Package, vertriebOnly: false },
-  { href: '/tasks',      label: 'Aufgaben', icon: CheckSquare,    vertriebOnly: false },
-  { href: '/reports',    label: 'Reports',  icon: BarChart3,      vertriebOnly: false },
+  { href: '/pipeline',   label: 'Pipeline',  icon: Kanban,      },
+  { href: '/tasks',      label: 'Aufgaben',  icon: CheckSquare, },
+  { href: '/companies',  label: 'Firmen',    icon: Building2,   vertriebOnly: true },
+  { href: '/templates',  label: 'Stellen',   icon: Package,     recruitingOnly: true },
+  { href: '/reports',    label: 'Reports',   icon: BarChart3,   separator: true },
 ];
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session } = useSession();
   const { category, setCategory } = useCategory();
 
@@ -58,23 +60,33 @@ export default function Header() {
           </button>
         </div>
 
+        <GlobalSearch
+          onOpenLead={(id) => router.push(`/leads?open=${id}`)}
+          onOpenCompany={(id) => router.push(`/companies?open=${id}`)}
+          onOpenTemplate={(id) => router.push(`/templates?open=${id}`)}
+          onOpenOpportunity={(id) => router.push(`/pipeline?open=${id}`)}
+        />
+
         <nav className="flex items-center gap-1 flex-1 min-w-0">
-          {NAV_ITEMS.filter(item => !item.vertriebOnly || category === 'VERTRIEB').map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
-            const displayLabel = typeof label === 'function' ? label(category) : label;
+          {NAV_ITEMS
+            .filter(item => (!item.vertriebOnly || category === 'VERTRIEB') && (!item.recruitingOnly || category === 'RECRUITING'))
+            .map(({ href, label, icon: Icon, separator }) => {
+            const active = pathname === href || (href === '/pipeline' && pathname === '/');
             return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap shrink-0
-                  ${active
-                    ? 'bg-tc-blue/20 text-tc-blue'
-                    : 'text-white/60 hover:bg-white/10 hover:text-white/90'
-                  }`}
-              >
-                <Icon size={15} />
-                <span className="hidden md:inline">{displayLabel}</span>
-              </Link>
+              <span key={href} className="flex items-center shrink-0">
+                {separator && <span className="w-px h-4 bg-white/20 mx-1" />}
+                <Link
+                  href={href}
+                  className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap
+                    ${active
+                      ? 'bg-tc-blue/20 text-tc-blue'
+                      : 'text-white/60 hover:bg-white/10 hover:text-white/90'
+                    }`}
+                >
+                  <Icon size={15} />
+                  <span className="hidden md:inline">{label}</span>
+                </Link>
+              </span>
             );
           })}
 

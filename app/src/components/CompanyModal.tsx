@@ -89,7 +89,7 @@ export default function CompanyModal({ companyId, onClose, onUpdate, onOpenLead,
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'contacts', label: `Kontakte (${company?.leads.length ?? 0})` },
-    { key: 'opportunities', label: `Opportunities (${allOpps.length})` },
+    { key: 'opportunities', label: `Anfragen (${allOpps.length})` },
     { key: 'info', label: 'Details' },
   ];
 
@@ -175,7 +175,7 @@ export default function CompanyModal({ companyId, onClose, onUpdate, onOpenLead,
                           {PHASE_LABELS[lead.phase]}
                         </span>
                         {activeOpps.length > 0 && (
-                          <span className="text-xs text-teal-600">{activeOpps.length} Opp(s)</span>
+                          <span className="text-xs text-teal-600">{activeOpps.length} Anfr.</span>
                         )}
                         {lead.email && <span className="text-xs text-gray-400">{lead.email}</span>}
                       </div>
@@ -190,7 +190,7 @@ export default function CompanyModal({ companyId, onClose, onUpdate, onOpenLead,
           {!loading && tab === 'opportunities' && (
             <div className="p-6 space-y-2">
               {allOpps.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-8">Keine Opportunities</p>
+                <p className="text-sm text-gray-400 text-center py-8">Keine Anfragen</p>
               )}
               {allOpps.map(opp => (
                 <div

@@ -36,7 +36,7 @@ function FunnelChart({ data, isRecruiting }: { data: FunnelData; isRecruiting: b
   const max = Math.max(data.leads, 1);
   const steps = [
     { label: isRecruiting ? 'Kandidaten' : 'Leads', value: data.leads, color: 'bg-tc-blue' },
-    { label: isRecruiting ? 'Mit Stelle' : 'Mit Opportunity', value: data.withOpportunity, color: 'bg-amber-500' },
+    { label: isRecruiting ? 'Mit Stelle' : 'Mit Anfrage', value: data.withOpportunity, color: 'bg-amber-500' },
     { label: isRecruiting ? 'Eingestellt' : 'Gewonnen', value: data.won, color: 'bg-emerald-500' },
   ];
 
@@ -93,7 +93,7 @@ function WinRateCard({ data, isRecruiting }: { data: WinRateData; isRecruiting: 
 
 function PipelineTable({ rows, total, isRecruiting }: { rows: PipelineRow[]; total: { value: number; weighted: number }; isRecruiting: boolean }) {
   if (rows.length === 0) {
-    return <p className="text-gray-400 text-sm text-center py-6">Keine offenen {isRecruiting ? 'Stellen' : 'Opportunities'}</p>;
+    return <p className="text-gray-400 text-sm text-center py-6">Keine offenen {isRecruiting ? 'Stellen' : 'Anfragen'}</p>;
   }
 
   return (
