@@ -24,6 +24,7 @@ model User {
   assignedTasks Task[]
   attachments        Attachment[]
   pushSubscriptions  PushSubscription[]
+  assignedTemplates  ProductTemplate[] @relation("TemplateAssignees")
 }
 
 model PushSubscription {
@@ -82,6 +83,7 @@ model ProductTemplate {
   category      LeadCategory @default(VERTRIEB)
   createdAt     DateTime     @default(now())
   opportunities Opportunity[]
+  assignedUsers User[]       @relation("TemplateAssignees")
 }
 
 model Opportunity {

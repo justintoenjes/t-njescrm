@@ -17,6 +17,7 @@ export async function GET(_: NextRequest, { params }: Ctx) {
     prisma.productTemplate.findUnique({
       where: { id },
       include: {
+        assignedUsers: { select: { id: true, name: true, email: true } },
         opportunities: {
           include: {
             lead: {
@@ -36,6 +37,10 @@ export async function GET(_: NextRequest, { params }: Ctx) {
   ]);
 
   if (!template) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  const isAdmin = session.user.role === 'ADMIN';
+  const isAssigned = template.assignedUsers.some(u => u.id === session.user.id);
+  const hasFullAccess = isAdmin || isAssigned || template.assignedUsers.length === 0;
 
   const daysWarm = parseInt(configs.find(c => c.key === 'days_warm')?.value ?? '14');
   const daysCold = parseInt(configs.find(c => c.key === 'days_cold')?.value ?? '30');
@@ -65,6 +70,17 @@ export async function GET(_: NextRequest, { params }: Ctx) {
   });
 
   const { opportunities, ...templateData } = template;
+
+  if (!hasFullAccess) {
+    // Limited access: only metadata, no candidates/details
+    return NextResponse.json({
+      ...templateData,
+      candidateCount: candidates.length,
+      candidates: [],
+      restricted: true,
+    });
+  }
+
   return NextResponse.json({
     ...templateData,
     candidateCount: candidates.length,
@@ -80,7 +96,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
   const { id } = await params;
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
-  const { name, description, defaultValue } = body;
+  const { name, description, defaultValue, assignedUserIds } = body;
 
   const template = await prisma.productTemplate.update({
     where: { id },
@@ -88,8 +104,9 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
       ...(name !== undefined ? { name } : {}),
       ...(description !== undefined ? { description: description || null } : {}),
       ...(defaultValue !== undefined ? { defaultValue: defaultValue ?? null } : {}),
+      ...(assignedUserIds !== undefined ? { assignedUsers: { set: assignedUserIds.map((uid: string) => ({ id: uid })) } } : {}),
     },
-    include: { _count: { select: { opportunities: true } } },
+    include: { _count: { select: { opportunities: true } }, assignedUsers: { select: { id: true, name: true, email: true } } },
   });
   return NextResponse.json(template);
 }

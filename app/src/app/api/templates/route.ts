@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     orderBy: { name: 'asc' },
     include: {
       _count: { select: { opportunities: true } },
+      assignedUsers: { select: { id: true, name: true } },
       opportunities: {
         select: { stage: true, leadId: true },
       },

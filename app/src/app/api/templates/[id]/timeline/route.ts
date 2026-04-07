@@ -13,12 +13,20 @@ export async function GET(_: NextRequest, { params }: Ctx) {
   const template = await prisma.productTemplate.findUnique({
     where: { id },
     select: {
+      assignedUsers: { select: { id: true } },
       opportunities: {
         select: { id: true, leadId: true },
       },
     },
   });
   if (!template) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  // Access check: only assigned users, admins, or if no users assigned
+  const isAdmin = session.user.role === 'ADMIN';
+  const isAssigned = template.assignedUsers.some(u => u.id === session.user.id);
+  if (!isAdmin && !isAssigned && template.assignedUsers.length > 0) {
+    return NextResponse.json({ notes: [], emails: [] });
+  }
 
   const oppIds = template.opportunities.map(o => o.id);
   const leadIds = Array.from(new Set(template.opportunities.map(o => o.leadId)));

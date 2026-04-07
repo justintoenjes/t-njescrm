@@ -32,6 +32,8 @@ type Candidate = {
   }[];
 };
 
+type AssignedUser = { id: string; name: string; email: string };
+
 type TemplateData = {
   id: string;
   name: string;
@@ -40,6 +42,8 @@ type TemplateData = {
   category: 'VERTRIEB' | 'RECRUITING';
   candidateCount: number;
   candidates: Candidate[];
+  assignedUsers?: AssignedUser[];
+  restricted?: boolean;
 };
 
 type MobileTab = 'timeline' | 'candidates' | 'details';
@@ -69,6 +73,7 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
   const candidatesLabel = isRecruiting ? 'Kandidaten' : 'Kontakte';
 
   const [template, setTemplate] = useState<TemplateData | null>(null);
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ name: '', description: '', defaultValue: '' });
   const [saving, setSaving] = useState(false);
@@ -175,6 +180,9 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
   }, [templateId]);
 
   useEffect(() => { fetchTemplate(); fetchTimeline(); }, [fetchTemplate, fetchTimeline]);
+  useEffect(() => {
+    if (isAdmin) fetch('/api/users').then(r => r.json()).then(setAllUsers).catch(() => {});
+  }, [isAdmin]);
 
   async function saveChanges() {
     setSaving(true);
@@ -190,6 +198,18 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
     setSaving(false);
     fetchTemplate();
     onUpdate();
+  }
+
+  async function toggleUserAssignment(userId: string) {
+    if (!template) return;
+    const current = template.assignedUsers?.map(u => u.id) ?? [];
+    const newIds = current.includes(userId) ? current.filter(id => id !== userId) : [...current, userId];
+    await fetch(`/api/templates/${templateId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignedUserIds: newIds }),
+    });
+    fetchTemplate();
   }
 
   async function deleteTemplate() {
@@ -460,6 +480,37 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
                       ))}
                     </div>
                   </div>
+
+                  {/* Restricted notice */}
+                  {template?.restricted && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                      <p className="text-sm text-amber-700 font-medium">Eingeschränkter Zugriff</p>
+                      <p className="text-xs text-amber-600 mt-1">Du bist dieser {entityLabel} nicht zugewiesen. Kandidaten und Notizen sind nicht sichtbar.</p>
+                    </div>
+                  )}
+
+                  {/* User Assignment (Admin only) */}
+                  {isAdmin && template && (
+                    <div className={`${mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Zugewiesene Benutzer</h3>
+                      <div className="space-y-1">
+                        {allUsers.map(u => {
+                          const assigned = template.assignedUsers?.some(a => a.id === u.id) ?? false;
+                          return (
+                            <label key={u.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                              <input type="checkbox" checked={assigned} onChange={() => toggleUserAssignment(u.id)}
+                                className="w-4 h-4 rounded border-gray-300 text-tc-blue" />
+                              <span className="text-sm text-gray-700">{u.name}</span>
+                              <span className="text-xs text-gray-400">{u.email}</span>
+                            </label>
+                          );
+                        })}
+                        {template.assignedUsers?.length === 0 && (
+                          <p className="text-xs text-gray-400 py-2">Keine Einschränkung — alle User haben Zugriff</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Details (edit form) */}
                   {isAdmin && (
