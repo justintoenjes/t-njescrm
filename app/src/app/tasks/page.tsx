@@ -149,6 +149,15 @@ export default function TasksPage() {
     }
   }, [status, router, load, isAdmin]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const openLeadId = params.get('openLead');
+    if (openLeadId && status === 'authenticated') {
+      openLead(openLeadId);
+      window.history.replaceState(null, '', '/tasks');
+    }
+  }, [status]);
+
   async function openLead(leadId: string) {
     const res = await fetch(`/api/leads/${leadId}`);
     if (res.ok) setSelectedLead(await res.json());

@@ -141,13 +141,14 @@ export default function PipelinePage() {
     }
   }, [status, router, load, isAdmin]);
 
-  // Open opportunity from ?open= query parameter (e.g. from global search)
+  // Open from query parameters (e.g. from global search)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const openId = params.get('open');
-    if (!openId || status !== 'authenticated') return;
-    setOpenOppId(openId);
-    window.history.replaceState(null, '', '/pipeline');
+    const openLeadId = params.get('openLead');
+    if (status !== 'authenticated') return;
+    if (openId) { setOpenOppId(openId); window.history.replaceState(null, '', '/pipeline'); }
+    if (openLeadId) { openLead(openLeadId); window.history.replaceState(null, '', '/pipeline'); }
   }, [status]);
 
   const byStage = (stage: OpportunityStage) => opps.filter(o => o.stage === stage);
@@ -203,7 +204,7 @@ export default function PipelinePage() {
   return (
     <div className="min-h-screen bg-gray-100">
       <Header />
-      <main className="p-6">
+      <main className="max-w-7xl mx-auto px-4 py-6">
         <h1 className="text-xl font-bold text-gray-900 mb-6">Pipeline</h1>
         <DndContext
           sensors={sensors}

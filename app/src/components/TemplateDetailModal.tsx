@@ -14,7 +14,8 @@ import { useCategory } from '@/lib/category-context';
 
 type Candidate = {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string | null;
   phone: string | null;
   phase: LeadPhase;
@@ -141,10 +142,10 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
     // Build note targets from candidates
     const targets: NoteTarget[] = [];
     data.candidates.forEach(c => {
-      targets.push({ type: 'lead', label: c.name, id: c.id });
+      targets.push({ type: 'lead', label: `${c.firstName} ${c.lastName}`.trim(), id: c.id });
       c.opportunities
         .filter(o => !TERMINAL_STAGES.includes(o.stage as any))
-        .forEach(o => targets.push({ type: 'opportunity', label: `${o.title} (${c.name})`, id: o.id }));
+        .forEach(o => targets.push({ type: 'opportunity', label: `${o.title} (${`${c.firstName} ${c.lastName}`.trim()})`, id: o.id }));
     });
     setNoteTargets(targets);
     setLoading(false);
@@ -239,13 +240,13 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
 
       function replacePlaceholders(text: string) {
         return text
-          .replace(/\{\{NAME\}\}/g, c.name)
+          .replace(/\{\{NAME\}\}/g, `${c.firstName} ${c.lastName}`.trim())
           .replace(/\{\{JOBTITEL\}\}/g, oppTitle)
           .replace(/\{\{FIRMA\}\}/g, '');
       }
 
       return {
-        candidateName: c.name,
+        candidateName: `${c.firstName} ${c.lastName}`.trim(),
         candidateEmail: c.email,
         oppId: opp?.id ?? '',
         oppTitle,
@@ -297,7 +298,7 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
 
   // Collect all opportunities from candidates for this template
   const allOpps = template?.candidates.flatMap(c =>
-    c.opportunities.map(o => ({ ...o, leadName: c.name }))
+    c.opportunities.map(o => ({ ...o, leadName: `${c.firstName} ${c.lastName}`.trim() }))
   ) ?? [];
   const activeOpps = allOpps.filter(o => !TERMINAL_STAGES.includes(o.stage as any));
   const totalValue = activeOpps.reduce((sum, o) => sum + (o.value ?? 0), 0);
@@ -442,7 +443,7 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
                           className={`flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl ${onOpenLead ? 'cursor-pointer hover:bg-tc-blue/10 transition' : ''}`}
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">{candidate.name}</p>
+                            <p className="text-sm font-medium text-gray-900">{`${candidate.firstName} ${candidate.lastName}`.trim()}</p>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${TEMP_COLORS[candidate.temperature]}`}>
                                 {candidate.score}

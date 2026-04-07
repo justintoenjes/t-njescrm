@@ -77,9 +77,10 @@ export default function TemplatesPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const openId = params.get('open');
-    if (!openId || authStatus !== 'authenticated') return;
-    setSelectedTemplateId(openId);
-    window.history.replaceState(null, '', '/templates');
+    const openLeadId = params.get('openLead');
+    if (authStatus !== 'authenticated') return;
+    if (openId) { setSelectedTemplateId(openId); window.history.replaceState(null, '', '/templates'); }
+    if (openLeadId) { openLead(openLeadId); window.history.replaceState(null, '', '/templates'); }
   }, [authStatus]);
 
   const fetchTemplates = useCallback(async () => {
@@ -221,21 +222,11 @@ export default function TemplatesPage() {
 
       <main className={`${isRecruiting ? 'max-w-7xl' : 'max-w-4xl'} mx-auto px-4 py-6 space-y-4`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${isRecruiting ? 'bg-emerald-100' : 'bg-teal-100'}`}>
-              {isRecruiting ? <Briefcase size={20} className="text-emerald-600" /> : <Package size={20} className="text-teal-600" />}
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">{label}</h1>
-              <p className="text-sm text-gray-500">
-                {isRecruiting ? 'Zentrale Stellenvorlagen für Kandidaten' : 'Zentrale Produktvorlagen für Anfragen'}
-              </p>
-            </div>
-          </div>
+          <h1 className="text-xl font-bold text-gray-900">{label}</h1>
           {isAdmin && (
             <button
               onClick={openNew}
-              className={`flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg transition text-white ${isRecruiting ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-tc-dark hover:bg-tc-dark/90'}`}
+              className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg transition text-white bg-tc-dark hover:bg-tc-dark/90"
             >
               <Plus size={15} /> {labelSingular} anlegen
             </button>

@@ -118,11 +118,12 @@ export default function GlobalSearch({ onOpenLead, onOpenCompany, onOpenTemplate
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-sm text-white/50 hover:bg-white/10 hover:text-white/90 transition-colors shrink-0"
+        className="hidden sm:flex items-center gap-2 bg-white/10 hover:bg-white/15 rounded-lg px-3 py-1.5 transition-colors shrink-0 min-w-[160px]"
         title="Suche (⌘K)"
       >
-        <Search size={15} />
-        <span className="hidden lg:inline text-xs text-white/40">⌘K</span>
+        <Search size={14} className="text-white/40" />
+        <span className="text-xs text-white/30 flex-1">Suchen…</span>
+        <kbd className="text-[10px] text-white/25 bg-white/10 px-1.5 py-0.5 rounded">⌘K</kbd>
       </button>
     );
   }

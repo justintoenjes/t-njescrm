@@ -72,7 +72,9 @@ export default function CompaniesPage() {
     const openId = params.get('open');
     const create = params.get('create');
     if (authStatus !== 'authenticated') return;
+    const openLeadId = params.get('openLead');
     if (openId) { setEditId(openId); window.history.replaceState(null, '', '/companies'); }
+    if (openLeadId) { openLead(openLeadId); window.history.replaceState(null, '', '/companies'); }
     if (create === 'true') { setShowCreate(true); window.history.replaceState(null, '', '/companies'); }
   }, [authStatus]);
 
