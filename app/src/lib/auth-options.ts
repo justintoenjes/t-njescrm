@@ -89,7 +89,7 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, profile }) {
       // On initial sign-in
       if (user) {
         token.id = user.id;
@@ -117,12 +117,13 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Find or create user in our DB, sync role from Azure groups
-        const email = token.email as string;
+        const email = (profile?.email ?? token.email) as string;
+        if (!email) { console.error('[Azure Auth] No email in profile or token'); return token; }
         let dbUser = await prisma.user.findUnique({ where: { email } });
         if (!dbUser) {
           dbUser = await prisma.user.create({
             data: {
-              name: token.name as string ?? email.split('@')[0],
+              name: (profile?.name ?? token.name ?? email.split('@')[0]) as string,
               email,
               password: '', // SSO user, no password
               role,
