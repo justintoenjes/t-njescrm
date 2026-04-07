@@ -16,13 +16,20 @@ async function getAzureGroupConfig(): Promise<{ adminGroupId: string; userGroupI
 
 async function getAzureGroupIds(accessToken: string): Promise<string[]> {
   try {
-    const res = await fetch('https://graph.microsoft.com/v1.0/me/memberOf?$select=id', {
+    const res = await fetch('https://graph.microsoft.com/v1.0/me/memberOf?$select=id,displayName', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      const err = await res.text().catch(() => '');
+      console.error('[Azure Groups] Graph API error:', res.status, err);
+      return [];
+    }
     const data = await res.json();
-    return (data.value ?? []).map((g: any) => g.id);
-  } catch {
+    const groups = (data.value ?? []).map((g: any) => g.id);
+    console.log('[Azure Groups] User groups:', data.value?.map((g: any) => `${g.displayName} (${g.id})`));
+    return groups;
+  } catch (e) {
+    console.error('[Azure Groups] Fetch error:', e);
     return [];
   }
 }
@@ -41,7 +48,7 @@ export const authOptions: NextAuthOptions = {
       tenantId: process.env.AZURE_AD_TENANT_ID!,
       authorization: {
         params: {
-          scope: 'openid profile email User.Read Mail.Read Mail.Send',
+          scope: 'openid profile email User.Read Mail.Read Mail.Send GroupMember.Read.All',
         },
       },
     }),
@@ -140,7 +147,7 @@ export const authOptions: NextAuthOptions = {
             client_secret: process.env.AZURE_AD_CLIENT_SECRET!,
             grant_type: 'refresh_token',
             refresh_token: token.refreshToken as string,
-            scope: 'openid profile email User.Read Mail.Read Mail.Send',
+            scope: 'openid profile email User.Read Mail.Read Mail.Send GroupMember.Read.All',
           });
           const res = await fetch(`https://login.microsoftonline.com/${process.env.AZURE_AD_TENANT_ID}/oauth2/v2.0/token`, {
             method: 'POST',
