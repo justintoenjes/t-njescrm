@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Save, Trash2, Users, Briefcase, Building2, Trophy, XCircle } from 'lucide-react';
+import { X, Save, Trash2, Users, Briefcase, Building2, Trophy, XCircle, Plus } from 'lucide-react';
 import { TEMP_COLORS, Temperature } from '@/lib/temperature';
 import { PHASE_LABELS, PHASE_COLORS, LeadPhase } from '@/lib/phase';
 import { OPP_STAGE_LABELS, OPP_STAGE_COLORS, TERMINAL_STAGES } from '@/lib/opportunity';
@@ -54,6 +54,36 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
   const [form, setForm] = useState({ name: '', website: '' });
   const [saving, setSaving] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('timeline');
+  const [showNewContact, setShowNewContact] = useState(false);
+  const [newContact, setNewContact] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [creatingContact, setCreatingContact] = useState(false);
+
+  async function createContact() {
+    if (!newContact.firstName.trim()) return;
+    setCreatingContact(true);
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: newContact.firstName.trim(),
+          lastName: newContact.lastName.trim(),
+          email: newContact.email.trim() || null,
+          phone: newContact.phone.trim() || null,
+          companyId: companyId,
+          category: 'VERTRIEB',
+        }),
+      });
+      if (res.ok) {
+        setNewContact({ firstName: '', lastName: '', email: '', phone: '' });
+        setShowNewContact(false);
+        fetchCompany();
+        onUpdate?.();
+      }
+    } finally {
+      setCreatingContact(false);
+    }
+  }
 
   // Timeline
   const [activities, setActivities] = useState<GroupActivity[]>([]);
@@ -217,11 +247,64 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
                   <div className={`${mobileTab !== 'contacts' && mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
                     {(mobileTab === 'contacts' || mobileTab === 'details' || true) && (
                       <>
-                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                          Kontakte ({company?.leads.length ?? 0})
-                        </h3>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            Kontakte ({company?.leads.length ?? 0})
+                          </h3>
+                          <button
+                            onClick={() => setShowNewContact(!showNewContact)}
+                            className="flex items-center gap-1 text-xs bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-2 py-1 rounded-lg transition"
+                          >
+                            <Plus size={12} /> Neu
+                          </button>
+                        </div>
+                        {showNewContact && (
+                          <div className="bg-gray-50 rounded-xl p-3 mb-2 space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                value={newContact.firstName}
+                                onChange={e => setNewContact({ ...newContact, firstName: e.target.value })}
+                                placeholder="Vorname *"
+                                autoFocus
+                                onKeyDown={e => { if (e.key === 'Enter') createContact(); if (e.key === 'Escape') setShowNewContact(false); }}
+                                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+                              />
+                              <input
+                                value={newContact.lastName}
+                                onChange={e => setNewContact({ ...newContact, lastName: e.target.value })}
+                                placeholder="Nachname"
+                                onKeyDown={e => { if (e.key === 'Enter') createContact(); if (e.key === 'Escape') setShowNewContact(false); }}
+                                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                value={newContact.email}
+                                onChange={e => setNewContact({ ...newContact, email: e.target.value })}
+                                placeholder="E-Mail"
+                                onKeyDown={e => { if (e.key === 'Enter') createContact(); if (e.key === 'Escape') setShowNewContact(false); }}
+                                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+                              />
+                              <input
+                                value={newContact.phone}
+                                onChange={e => setNewContact({ ...newContact, phone: e.target.value })}
+                                placeholder="Telefon"
+                                onKeyDown={e => { if (e.key === 'Enter') createContact(); if (e.key === 'Escape') setShowNewContact(false); }}
+                                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => { setShowNewContact(false); setNewContact({ firstName: '', lastName: '', email: '', phone: '' }); }}
+                                className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5">Abbrechen</button>
+                              <button onClick={createContact} disabled={creatingContact || !newContact.firstName.trim()}
+                                className="flex items-center gap-1 text-xs bg-tc-dark hover:bg-tc-dark/90 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+                                {creatingContact ? 'Erstelle…' : 'Anlegen'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         <div className="space-y-2">
-                          {company?.leads.length === 0 && (
+                          {company?.leads.length === 0 && !showNewContact && (
                             <p className="text-sm text-gray-400 text-center py-4">Keine Kontakte</p>
                           )}
                           {company?.leads.map(lead => {

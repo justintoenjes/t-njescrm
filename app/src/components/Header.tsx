@@ -4,7 +4,8 @@ import Link from 'next/link';
 /* eslint-disable @next/next/no-img-element */
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3, Plus } from 'lucide-react';
 import { useCategory } from '@/lib/category-context';
 import GlobalSearch from '@/components/GlobalSearch';
 import type { LucideIcon } from 'lucide-react';
@@ -24,6 +25,17 @@ export default function Header() {
   const router = useRouter();
   const { data: session } = useSession();
   const { category, setCategory } = useCategory();
+  const [createOpen, setCreateOpen] = useState(false);
+  const createRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!createOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (createRef.current && !createRef.current.contains(e.target as Node)) setCreateOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [createOpen]);
 
   return (
     <header className="bg-tc-dark sticky top-0 z-30 pt-[env(safe-area-inset-top)] max-w-[100vw]">
@@ -66,6 +78,44 @@ export default function Header() {
           onOpenTemplate={(id) => router.push(`/templates?open=${id}`)}
           onOpenOpportunity={(id) => router.push(`/pipeline?open=${id}`)}
         />
+
+        {/* Create Dropdown */}
+        <div ref={createRef} className="relative shrink-0">
+          <button
+            onClick={() => setCreateOpen(!createOpen)}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-white/50 hover:bg-white/10 hover:text-white/90 transition-colors"
+            title="Neu anlegen"
+          >
+            <Plus size={16} />
+          </button>
+          {createOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 min-w-[200px] z-50">
+              <button
+                onClick={() => { setCreateOpen(false); router.push('/leads?create=true'); }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
+              >
+                <User size={14} className="text-gray-400" />
+                {category === 'RECRUITING' ? 'Neuer Kandidat' : 'Neuer Kontakt'}
+              </button>
+              {category === 'VERTRIEB' && (
+                <button
+                  onClick={() => { setCreateOpen(false); router.push('/companies?create=true'); }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
+                >
+                  <Building2 size={14} className="text-gray-400" />
+                  Neue Firma
+                </button>
+              )}
+              <button
+                onClick={() => { setCreateOpen(false); router.push('/pipeline?create=true'); }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
+              >
+                <Briefcase size={14} className="text-gray-400" />
+                {category === 'RECRUITING' ? 'Neue Bewerbung' : 'Neue Anfrage'}
+              </button>
+            </div>
+          )}
+        </div>
 
         <nav className="flex items-center gap-1 flex-1 min-w-0">
           {NAV_ITEMS

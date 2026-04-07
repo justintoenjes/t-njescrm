@@ -12,6 +12,9 @@ import { CSS } from '@dnd-kit/utilities';
 import Header from '@/components/Header';
 import OpportunityModal from '@/components/OpportunityModal';
 import type { OpportunityFull } from '@/components/OpportunityModal';
+import LeadModal, { LeadFull } from '@/components/LeadModal';
+import CompanyDetailModal from '@/components/CompanyDetailModal';
+import TemplateDetailModal from '@/components/TemplateDetailModal';
 import { OPP_STAGE_LABELS, OPP_STAGE_ORDER, OPP_STAGE_COLORS, OpportunityStage, getStageOrder } from '@/lib/opportunity';
 import { TEMP_LABELS, TEMP_COLORS, Temperature } from '@/lib/temperature';
 import { GripVertical } from 'lucide-react';
@@ -27,7 +30,7 @@ interface OppCard {
   assignedTo?: { id: string; name: string } | null;
 }
 
-function CardContent({ opp, overlay = false }: { opp: OppCard; overlay?: boolean }) {
+function CardContent({ opp, overlay = false, onOpenLead }: { opp: OppCard; overlay?: boolean; onOpenLead?: (leadId: string) => void }) {
   return (
     <div className={`bg-white rounded-lg border border-gray-200 p-3 shadow-sm select-none overflow-hidden
       ${overlay ? 'shadow-lg rotate-1 opacity-90' : ''}`}>
@@ -35,7 +38,13 @@ function CardContent({ opp, overlay = false }: { opp: OppCard; overlay?: boolean
         <div className="min-w-0 flex-1">
           <p className="font-medium text-sm text-gray-900 truncate">{opp.title}</p>
           <p className="text-xs text-gray-500 truncate">
-            {`${opp.lead.firstName} ${opp.lead.lastName}`.trim()}{opp.lead.companyRef?.name ? ` · ${opp.lead.companyRef.name}` : ''}
+            <button
+              onClick={(e) => { if (onOpenLead) { e.stopPropagation(); onOpenLead(opp.lead.id); } }}
+              className={onOpenLead ? 'text-tc-blue hover:underline' : ''}
+            >
+              {`${opp.lead.firstName} ${opp.lead.lastName}`.trim()}
+            </button>
+            {opp.lead.companyRef?.name ? ` · ${opp.lead.companyRef.name}` : ''}
           </p>
         </div>
         <span className={`text-xs px-1.5 py-0.5 rounded-full border shrink-0 ${TEMP_COLORS[opp.temperature]}`}>
@@ -55,7 +64,7 @@ function CardContent({ opp, overlay = false }: { opp: OppCard; overlay?: boolean
   );
 }
 
-function SortableCard({ opp, onOpen }: { opp: OppCard; onOpen: (id: string) => void }) {
+function SortableCard({ opp, onOpen, onOpenLead }: { opp: OppCard; onOpen: (id: string) => void; onOpenLead?: (leadId: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: opp.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 };
 
@@ -66,14 +75,14 @@ function SortableCard({ opp, onOpen }: { opp: OppCard; onOpen: (id: string) => v
           <GripVertical size={14} />
         </div>
         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onOpen(opp.id)}>
-          <CardContent opp={opp} />
+          <CardContent opp={opp} onOpenLead={onOpenLead} />
         </div>
       </div>
     </div>
   );
 }
 
-function Column({ stage, opps, onOpen }: { stage: OpportunityStage; opps: OppCard[]; onOpen: (id: string) => void }) {
+function Column({ stage, opps, onOpen, onOpenLead }: { stage: OpportunityStage; opps: OppCard[]; onOpen: (id: string) => void; onOpenLead?: (leadId: string) => void }) {
   const colorClass = OPP_STAGE_COLORS[stage];
   const totalValue = opps.reduce((sum, o) => sum + (o.value ?? 0), 0);
 
@@ -90,7 +99,7 @@ function Column({ stage, opps, onOpen }: { stage: OpportunityStage; opps: OppCar
       </div>
       <div className={`flex-1 rounded-b-lg border border-t-0 bg-white/60 p-2 min-h-[120px] space-y-2 overflow-hidden ${colorClass.split(' ').find(c => c.startsWith('border')) ?? ''}`}>
         <SortableContext items={opps.map(o => o.id)} strategy={verticalListSortingStrategy}>
-          {opps.map(opp => <SortableCard key={opp.id} opp={opp} onOpen={onOpen} />)}
+          {opps.map(opp => <SortableCard key={opp.id} opp={opp} onOpen={onOpen} onOpenLead={onOpenLead} />)}
         </SortableContext>
       </div>
     </div>
@@ -106,6 +115,14 @@ export default function PipelinePage() {
   const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openOppId, setOpenOppId] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<LeadFull | null>(null);
+  const [openCompanyId, setOpenCompanyId] = useState<string | null>(null);
+  const [openTemplateId, setOpenTemplateId] = useState<string | null>(null);
+
+  async function openLead(leadId: string) {
+    const res = await fetch(`/api/leads/${leadId}`);
+    if (res.ok) setSelectedLead(await res.json());
+  }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -197,7 +214,7 @@ export default function PipelinePage() {
         >
           <div className="flex gap-4 overflow-x-auto pb-4">
             {getStageOrder(category).map(stage => (
-              <Column key={stage} stage={stage} opps={byStage(stage)} onOpen={setOpenOppId} />
+              <Column key={stage} stage={stage} opps={byStage(stage)} onOpen={setOpenOppId} onOpenLead={openLead} />
             ))}
           </div>
           <DragOverlay>
@@ -214,6 +231,43 @@ export default function PipelinePage() {
           onClose={() => setOpenOppId(null)}
           onUpdate={handleOppUpdate}
           onDelete={handleOppDelete}
+          onOpenLead={(id) => { setOpenOppId(null); openLead(id); }}
+          onOpenCompany={(id) => { setOpenOppId(null); setOpenCompanyId(id); }}
+          onOpenTemplate={(id) => { setOpenOppId(null); setOpenTemplateId(id); }}
+        />
+      )}
+
+      {selectedLead && (
+        <LeadModal
+          lead={selectedLead}
+          users={users}
+          isAdmin={isAdmin}
+          onClose={() => setSelectedLead(null)}
+          onUpdate={(updated) => { setSelectedLead(updated); load(); }}
+          onDelete={() => { setSelectedLead(null); load(); }}
+          onOpenCompany={(id) => { setSelectedLead(null); setOpenCompanyId(id); }}
+          onOpenTemplate={(id) => { setSelectedLead(null); setOpenTemplateId(id); }}
+        />
+      )}
+
+      {openCompanyId && (
+        <CompanyDetailModal
+          companyId={openCompanyId}
+          onClose={() => setOpenCompanyId(null)}
+          onUpdate={load}
+          onOpenLead={(id) => { setOpenCompanyId(null); openLead(id); }}
+          onOpenOpportunity={(id) => { setOpenCompanyId(null); setOpenOppId(id); }}
+        />
+      )}
+
+      {openTemplateId && (
+        <TemplateDetailModal
+          templateId={openTemplateId}
+          isAdmin={isAdmin}
+          onClose={() => setOpenTemplateId(null)}
+          onUpdate={load}
+          onOpenLead={(id) => { setOpenTemplateId(null); openLead(id); }}
+          onOpenOpportunity={(id) => { setOpenTemplateId(null); setOpenOppId(id); }}
         />
       )}
     </div>

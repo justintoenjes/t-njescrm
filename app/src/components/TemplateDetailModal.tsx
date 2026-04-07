@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Save, Trash2, Users, Briefcase, Package, Lock, AlertTriangle } from 'lucide-react';
+import { X, Save, Trash2, Users, Briefcase, Package, Lock, AlertTriangle, Plus } from 'lucide-react';
 import { TEMP_COLORS, Temperature } from '@/lib/temperature';
 import { PHASE_LABELS, PHASE_COLORS, LeadPhase } from '@/lib/phase';
 import { OPP_STAGE_LABELS, OPP_STAGE_COLORS, TERMINAL_STAGES } from '@/lib/opportunity';
@@ -72,6 +72,47 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
   const [form, setForm] = useState({ name: '', description: '', defaultValue: '' });
   const [saving, setSaving] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('timeline');
+  const [showNewCandidate, setShowNewCandidate] = useState(false);
+  const [newCandidate, setNewCandidate] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [creatingCandidate, setCreatingCandidate] = useState(false);
+
+  async function createCandidate() {
+    if (!newCandidate.firstName.trim()) return;
+    setCreatingCandidate(true);
+    try {
+      // Create lead
+      const leadRes = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: newCandidate.firstName.trim(),
+          lastName: newCandidate.lastName.trim(),
+          email: newCandidate.email.trim() || null,
+          phone: newCandidate.phone.trim() || null,
+          category: 'RECRUITING',
+        }),
+      });
+      if (!leadRes.ok) return;
+      const lead = await leadRes.json();
+      // Create opportunity linked to this template
+      await fetch('/api/opportunities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: template?.name ?? 'Bewerbung',
+          leadId: lead.id,
+          templateId: templateId,
+          stage: 'SCREENING',
+        }),
+      });
+      setNewCandidate({ firstName: '', lastName: '', email: '', phone: '' });
+      setShowNewCandidate(false);
+      fetchTemplate();
+      onUpdate?.();
+    } finally {
+      setCreatingCandidate(false);
+    }
+  }
 
   // Timeline
   const [activities, setActivities] = useState<GroupActivity[]>([]);
@@ -347,11 +388,51 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
 
                   {/* Candidates */}
                   <div className={`${mobileTab !== 'candidates' && mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                      {candidatesLabel} ({template?.candidateCount ?? 0})
-                    </h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        {candidatesLabel} ({template?.candidateCount ?? 0})
+                      </h3>
+                      <button
+                        onClick={() => setShowNewCandidate(!showNewCandidate)}
+                        className="flex items-center gap-1 text-xs bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-2 py-1 rounded-lg transition"
+                      >
+                        <Plus size={12} /> Neu
+                      </button>
+                    </div>
+                    {showNewCandidate && (
+                      <div className="bg-gray-50 rounded-xl p-3 mb-2 space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <input value={newCandidate.firstName} onChange={e => setNewCandidate({ ...newCandidate, firstName: e.target.value })}
+                            placeholder="Vorname *" autoFocus
+                            onKeyDown={e => { if (e.key === 'Enter') createCandidate(); if (e.key === 'Escape') setShowNewCandidate(false); }}
+                            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                          <input value={newCandidate.lastName} onChange={e => setNewCandidate({ ...newCandidate, lastName: e.target.value })}
+                            placeholder="Nachname"
+                            onKeyDown={e => { if (e.key === 'Enter') createCandidate(); if (e.key === 'Escape') setShowNewCandidate(false); }}
+                            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input value={newCandidate.email} onChange={e => setNewCandidate({ ...newCandidate, email: e.target.value })}
+                            placeholder="E-Mail"
+                            onKeyDown={e => { if (e.key === 'Enter') createCandidate(); if (e.key === 'Escape') setShowNewCandidate(false); }}
+                            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                          <input value={newCandidate.phone} onChange={e => setNewCandidate({ ...newCandidate, phone: e.target.value })}
+                            placeholder="Telefon"
+                            onKeyDown={e => { if (e.key === 'Enter') createCandidate(); if (e.key === 'Escape') setShowNewCandidate(false); }}
+                            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => { setShowNewCandidate(false); setNewCandidate({ firstName: '', lastName: '', email: '', phone: '' }); }}
+                            className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5">Abbrechen</button>
+                          <button onClick={createCandidate} disabled={creatingCandidate || !newCandidate.firstName.trim()}
+                            className="flex items-center gap-1 text-xs bg-tc-dark hover:bg-tc-dark/90 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+                            {creatingCandidate ? 'Erstelle…' : 'Anlegen'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <div className="space-y-2">
-                      {template?.candidates.length === 0 && (
+                      {template?.candidates.length === 0 && !showNewCandidate && (
                         <p className="text-sm text-gray-400 text-center py-4">Keine {candidatesLabel}</p>
                       )}
                       {template?.candidates.map(candidate => (

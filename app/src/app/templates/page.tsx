@@ -477,6 +477,7 @@ export default function TemplatesPage() {
           onClose={() => setSelectedLead(null)}
           onUpdate={(updated) => { setSelectedLead(updated); fetchTemplates(); }}
           onDelete={() => { setSelectedLead(null); fetchTemplates(); }}
+          onOpenTemplate={(id) => { setSelectedLead(null); setSelectedTemplateId(id); }}
         />
       )}
 
@@ -489,6 +490,8 @@ export default function TemplatesPage() {
           onClose={() => setSelectedOppId(null)}
           onUpdate={() => fetchTemplates()}
           onDelete={() => { setSelectedOppId(null); fetchTemplates(); }}
+          onOpenLead={(id) => { setSelectedOppId(null); openLead(id); }}
+          onOpenTemplate={(id) => { setSelectedOppId(null); setSelectedTemplateId(id); }}
         />
       )}
     </div>

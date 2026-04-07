@@ -21,11 +21,13 @@ type Props = {
   onClose: () => void;
   onUpdate: (lead: LeadFull) => void;
   onDelete: (id: string) => void;
+  onOpenCompany?: (companyId: string) => void;
+  onOpenTemplate?: (templateId: string) => void;
 };
 
 type MobileTab = 'timeline' | 'details' | 'opportunities' | 'tasks';
 
-export default function LeadDetailModal({ lead, users, isAdmin, onClose, onUpdate, onDelete }: Props) {
+export default function LeadDetailModal({ lead, users, isAdmin, onClose, onUpdate, onDelete, onOpenCompany, onOpenTemplate }: Props) {
   const state = useLeadDetail({ lead, onUpdate, onDelete, onClose });
   const { openOppId, setOpenOppId, opportunities, handleOppUpdate, handleOppDelete, activeOppCount, toggleArchived, deleteLead } = state;
 
@@ -79,7 +81,12 @@ export default function LeadDetailModal({ lead, users, isAdmin, onClose, onUpdat
                 </span>
               )}
               {lead.companyRef && (
-                <span className="hidden sm:inline text-xs text-gray-500">{lead.companyRef.name}</span>
+                <button
+                  onClick={() => { if (onOpenCompany) { onClose(); onOpenCompany(lead.companyRef!.id); } }}
+                  className={`hidden sm:inline text-xs ${onOpenCompany ? 'text-tc-blue hover:underline cursor-pointer' : 'text-gray-500'}`}
+                >
+                  {lead.companyRef.name}
+                </button>
               )}
             </div>
             <div className="flex items-center gap-1 lg:gap-2 shrink-0">
@@ -201,6 +208,8 @@ export default function LeadDetailModal({ lead, users, isAdmin, onClose, onUpdat
           onDelete={handleOppDelete}
           showBack
           siblingOpportunities={opportunities.map(o => ({ id: o.id, title: o.title }))}
+          onOpenCompany={onOpenCompany ? (id) => { onClose(); onOpenCompany(id); } : undefined}
+          onOpenTemplate={onOpenTemplate ? (id) => { onClose(); onOpenTemplate(id); } : undefined}
         />
       )}
     </>

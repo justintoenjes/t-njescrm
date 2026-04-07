@@ -211,6 +211,7 @@ export default function TasksPage() {
           onClose={() => { setOpenOppId(null); load(); }}
           onUpdate={() => {}}
           onDelete={() => { setOpenOppId(null); load(); }}
+          onOpenLead={(id) => { setOpenOppId(null); openLead(id); }}
         />
       )}
     </div>

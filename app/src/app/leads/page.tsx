@@ -169,15 +169,22 @@ export default function HomePage() {
     setLoadingLead(null);
   }
 
-  // Open lead from ?open= query parameter (e.g. from global search)
+  // Open lead or create form from query parameters (e.g. from global search or header +)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const openId = params.get('open');
-    if (!openId || authStatus !== 'authenticated') return;
-    fetch(`/api/leads/${openId}`).then(r => r.json()).then((full: LeadFull) => {
-      setSelected(full);
+    const create = params.get('create');
+    if (authStatus !== 'authenticated') return;
+    if (openId) {
+      fetch(`/api/leads/${openId}`).then(r => r.json()).then((full: LeadFull) => {
+        setSelected(full);
+        window.history.replaceState(null, '', '/leads');
+      }).catch(() => {});
+    }
+    if (create === 'true') {
+      setShowCreate(true);
       window.history.replaceState(null, '', '/leads');
-    }).catch(() => {});
+    }
   }, [authStatus]);
 
   // Duplicate check when email or phone changes

@@ -70,9 +70,10 @@ export default function CompaniesPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const openId = params.get('open');
-    if (!openId || authStatus !== 'authenticated') return;
-    setEditId(openId);
-    window.history.replaceState(null, '', '/companies');
+    const create = params.get('create');
+    if (authStatus !== 'authenticated') return;
+    if (openId) { setEditId(openId); window.history.replaceState(null, '', '/companies'); }
+    if (create === 'true') { setShowCreate(true); window.history.replaceState(null, '', '/companies'); }
   }, [authStatus]);
 
   const fetchCompanies = useCallback(async () => {
@@ -416,6 +417,7 @@ export default function CompaniesPage() {
           onClose={() => setSelectedLead(null)}
           onUpdate={(updated) => { setSelectedLead(updated); fetchCompanies(); }}
           onDelete={() => { setSelectedLead(null); fetchCompanies(); }}
+          onOpenCompany={(id) => { setSelectedLead(null); setEditId(id); }}
         />
       )}
 
@@ -428,6 +430,8 @@ export default function CompaniesPage() {
           onClose={() => setSelectedOppId(null)}
           onUpdate={() => fetchCompanies()}
           onDelete={() => { setSelectedOppId(null); fetchCompanies(); }}
+          onOpenLead={(id) => { setSelectedOppId(null); openLead(id); }}
+          onOpenCompany={(id) => { setSelectedOppId(null); setEditId(id); }}
         />
       )}
     </div>

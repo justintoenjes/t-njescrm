@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { X, Send, Trash2, Save, Brain, Plus, Trash, CheckSquare, ArrowLeft, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Send, Trash2, Save, Brain, Plus, Trash, CheckSquare, ArrowLeft, AlertCircle, ChevronDown, ChevronRight, Briefcase } from 'lucide-react';
 import { TEMP_COLORS, Temperature } from '@/lib/temperature';
 import { OPP_STAGE_LABELS, OPP_STAGE_ORDER, OPP_STAGE_COLORS, OpportunityStage, getStageOrder } from '@/lib/opportunity';
 import type { OppScoreBreakdown } from '@/lib/opp-score';
@@ -45,7 +45,7 @@ type AISummary = {
   temperatureSuggestionReason?: string | null;
 };
 type FollowUp = { subject: string; body: string };
-type Tab = 'details' | 'notes' | 'tasks';
+type MobileTab = 'timeline' | 'details' | 'tasks';
 
 type Props = {
   opportunityId: string;
@@ -56,17 +56,23 @@ type Props = {
   onDelete: (id: string) => void;
   showBack?: boolean;
   siblingOpportunities?: { id: string; title: string }[];
+  onOpenLead?: (leadId: string) => void;
+  onOpenCompany?: (companyId: string) => void;
+  onOpenTemplate?: (templateId: string) => void;
 };
 
-export default function OpportunityModal({ opportunityId, users, isAdmin, onClose, onUpdate, onDelete, showBack, siblingOpportunities }: Props) {
+export default function OpportunityModal({ opportunityId, users, isAdmin, onClose, onUpdate, onDelete, showBack, siblingOpportunities, onOpenLead, onOpenCompany, onOpenTemplate }: Props) {
   const { data: session } = useSession();
   const [opp, setOpp] = useState<OpportunityFull | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
-  const [tab, setTab] = useState<Tab>('details');
+  const [mobileTab, setMobileTab] = useState<MobileTab>('timeline');
   const [form, setForm] = useState({ title: '', stage: 'PROPOSAL' as OpportunityStage, value: '', expectedCloseDate: '', assignedToId: '' });
   const [hasIdentifiedNeed, setHasIdentifiedNeed] = useState(false);
   const [isClosingReady, setIsClosingReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [detailsCollapsed, setDetailsCollapsed] = useState(false);
+  const [tasksCollapsed, setTasksCollapsed] = useState(false);
+  const [attachmentsCollapsed, setAttachmentsCollapsed] = useState(true);
   const [notes, setNotes] = useState<Note[]>([]);
   const [noteText, setNoteText] = useState('');
   const [addingNote, setAddingNote] = useState(false);
@@ -134,12 +140,12 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
   }, [opportunityId]);
 
   useEffect(() => {
-    if (tab === 'tasks' && !tasksLoaded && opp) {
+    if (!tasksLoaded && opp) {
       fetch(`/api/opportunities/${opp.id}/tasks`)
         .then(r => r.json())
         .then(data => { setTasks(data); setTasksLoaded(true); });
     }
-  }, [tab, opp, tasksLoaded]);
+  }, [opp, tasksLoaded]);
 
   async function doSave() {
     if (!opp) return;
@@ -434,27 +440,30 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
     return new Date(d).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
-  const TABS: { key: Tab; label: string }[] = [
+  const MOBILE_TABS: { key: MobileTab; label: string }[] = [
+    { key: 'timeline', label: 'Aktivität' },
     { key: 'details', label: 'Details' },
-    { key: 'notes', label: `Notizen (${notes.length})` },
     { key: 'tasks', label: 'Aufgaben' },
   ];
 
   if (!opp) {
     return (
-      <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-4">
+      <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 lg:p-4">
         <div className="bg-white rounded-2xl p-8 text-gray-400">Laden…</div>
       </div>
     );
   }
 
   const stageColor = OPP_STAGE_COLORS[opp.stage];
+  const openTasks = tasks.filter(t => !t.isCompleted);
+  const completedTasks = tasks.filter(t => t.isCompleted);
+  const isRecruiting = opp.lead.category === 'RECRUITING';
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 lg:p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white lg:rounded-2xl shadow-2xl w-full h-full lg:w-[95vw] lg:max-w-7xl lg:h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b shrink-0">
           <div className="flex items-center gap-3 flex-wrap min-w-0">
             {showBack && (
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600 mr-1">
@@ -462,7 +471,25 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
               </button>
             )}
             <div className="min-w-0">
-              <p className="text-xs text-gray-400">{`${opp.lead.firstName} ${opp.lead.lastName}`.trim()}{opp.lead.companyRef?.name ? ` · ${opp.lead.companyRef.name}` : ''}</p>
+              <p className="text-xs text-gray-400">
+                <button
+                  onClick={() => { if (onOpenLead) { onClose(); onOpenLead(opp.lead.id); } }}
+                  className={onOpenLead ? 'text-tc-blue hover:underline cursor-pointer' : ''}
+                >
+                  {`${opp.lead.firstName} ${opp.lead.lastName}`.trim()}
+                </button>
+                {opp.lead.companyRef?.name && (
+                  <>
+                    {' · '}
+                    <button
+                      onClick={() => { if (onOpenCompany && opp.lead.companyRef) { onClose(); onOpenCompany(opp.lead.companyRef.id); } }}
+                      className={onOpenCompany ? 'text-tc-blue hover:underline cursor-pointer' : ''}
+                    >
+                      {opp.lead.companyRef.name}
+                    </button>
+                  </>
+                )}
+              </p>
               <h2 className="text-base font-bold text-gray-900 truncate">{opp.title}</h2>
             </div>
             <span className={`text-xs font-medium px-2 py-1 rounded-full border shrink-0 ${stageColor}`}>
@@ -486,7 +513,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {isAdmin && (
-              <button onClick={deleteOpp} className="text-red-400 hover:text-red-600 p-1 rounded">
+              <button onClick={deleteOpp} className="text-red-400 hover:text-red-600 p-1 rounded" title="Löschen">
                 <Trash2 size={18} />
               </button>
             )}
@@ -498,92 +525,204 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b px-6">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`py-2.5 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.key ? 'border-tc-dark text-tc-dark' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+        {/* Mobile Tabs */}
+        <div className="lg:hidden flex border-b px-4 overflow-x-auto shrink-0">
+          {MOBILE_TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setMobileTab(t.key)}
+              className={`py-2.5 px-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap
+                ${mobileTab === t.key ? 'border-tc-dark text-tc-dark' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            >
               {t.label}
             </button>
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {/* DETAILS */}
-          {tab === 'details' && (
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="text-xs text-gray-500 font-medium">Titel</label>
-                  <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
-                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 font-medium">Stage</label>
-                  <select value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value as OpportunityStage })}
-                    disabled={!!interviewDraft || !!rejectionDraft || !!screeningDraft}
-                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue disabled:opacity-50">
-                    {getStageOrder(opp.lead.category).map(s => <option key={s} value={s}>{OPP_STAGE_LABELS[s]}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 font-medium">Wert (€)</label>
-                  <input type="number" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} placeholder="optional"
-                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 font-medium">Erwarteter Abschluss</label>
-                  <input type="date" value={form.expectedCloseDate} onChange={e => setForm({ ...form, expectedCloseDate: e.target.value })}
-                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
-                </div>
-                {isAdmin && (
-                  <div>
-                    <label className="text-xs text-gray-500 font-medium">Zugewiesen an</label>
-                    <select value={form.assignedToId} onChange={e => setForm({ ...form, assignedToId: e.target.value })}
-                      className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue">
-                      <option value="">Nicht zugewiesen</option>
-                      {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
-                    </select>
+        {/* Content: Two-Column Desktop / Tab-Based Mobile */}
+        <div className="flex-1 overflow-hidden flex">
+          {/* LEFT PANEL */}
+          <div className={`w-full lg:w-[420px] lg:border-r lg:flex flex-col overflow-y-auto shrink-0 ${
+            mobileTab === 'timeline' ? 'hidden lg:flex' : 'flex lg:flex'
+          }`}>
+            <div className="p-4 sm:p-5 space-y-3">
+
+              {/* Details Section */}
+              <div className="border border-gray-100 rounded-xl">
+                <button onClick={() => setDetailsCollapsed(!detailsCollapsed)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Details</span>
+                  {detailsCollapsed ? <ChevronRight size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                </button>
+                {!detailsCollapsed && (
+                  <div className="px-4 pb-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <label className="text-xs text-gray-500 font-medium">Titel</label>
+                        <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
+                          className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 font-medium">Stage</label>
+                        <select value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value as OpportunityStage })}
+                          disabled={!!interviewDraft || !!rejectionDraft || !!screeningDraft}
+                          className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue disabled:opacity-50">
+                          {getStageOrder(opp.lead.category).map(s => <option key={s} value={s}>{OPP_STAGE_LABELS[s]}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 font-medium">Wert (€)</label>
+                        <input type="number" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} placeholder="optional"
+                          className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 font-medium">Erwarteter Abschluss</label>
+                        <input type="date" value={form.expectedCloseDate} onChange={e => setForm({ ...form, expectedCloseDate: e.target.value })}
+                          className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                      </div>
+                      {isAdmin && (
+                        <div>
+                          <label className="text-xs text-gray-500 font-medium">Zugewiesen an</label>
+                          <select value={form.assignedToId} onChange={e => setForm({ ...form, assignedToId: e.target.value })}
+                            className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue">
+                            <option value="">Nicht zugewiesen</option>
+                            {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Deal-Status */}
+                    <div className="border border-gray-100 rounded-xl p-3 space-y-2">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Deal-Status</p>
+                      <label className="flex items-center gap-2.5 cursor-pointer">
+                        <input type="checkbox" checked={hasIdentifiedNeed} onChange={e => setHasIdentifiedNeed(e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-300 text-tc-blue" />
+                        <span className="text-sm text-gray-700">Bedarf / Need identifiziert</span>
+                      </label>
+                      <label className="flex items-center gap-2.5 cursor-pointer">
+                        <input type="checkbox" checked={isClosingReady} onChange={e => setIsClosingReady(e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-300 text-tc-blue" />
+                        <span className="text-sm text-gray-700">Bereit für Closing</span>
+                      </label>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">Erstellt: {formatDate(opp.createdAt)}</span>
+                      <button onClick={saveChanges} disabled={saving}
+                        className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
+                        <Save size={14} /> {saving ? 'Speichern…' : 'Speichern'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Deal-Status */}
-              <div className="border border-gray-100 rounded-xl p-4 space-y-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Deal-Status</p>
-                <label className="flex items-center gap-2.5 cursor-pointer">
-                  <input type="checkbox" checked={hasIdentifiedNeed} onChange={e => setHasIdentifiedNeed(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-tc-blue" />
-                  <span className="text-sm text-gray-700">Bedarf / Need identifiziert</span>
-                </label>
-                <label className="flex items-center gap-2.5 cursor-pointer">
-                  <input type="checkbox" checked={isClosingReady} onChange={e => setIsClosingReady(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-tc-blue" />
-                  <span className="text-sm text-gray-700">Bereit für Closing</span>
-                </label>
+              {/* Tasks Section */}
+              <div className={`border border-gray-100 rounded-xl ${mobileTab !== 'tasks' && mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
+                <button onClick={() => setTasksCollapsed(!tasksCollapsed)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Aufgaben ({openTasks.length}{completedTasks.length > 0 ? ` + ${completedTasks.length}` : ''})
+                  </span>
+                  {tasksCollapsed ? <ChevronRight size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                </button>
+                {!tasksCollapsed && (
+                  <div className="px-4 pb-4 space-y-3">
+                    <div className="flex gap-2">
+                      <input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') addTask(); }} placeholder="Neue Aufgabe…"
+                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                      <input type="date" value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)}
+                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue w-[130px]" />
+                      <button onClick={addTask} disabled={addingTask || !newTaskTitle.trim()}
+                        className="bg-tc-dark hover:bg-tc-dark/90 text-white px-3 py-2 rounded-lg transition disabled:opacity-50">
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      {!tasksLoaded && <p className="text-sm text-gray-400 text-center py-4">Lädt…</p>}
+                      {tasksLoaded && tasks.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Keine Aufgaben</p>}
+                      {openTasks.map(task => {
+                        const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
+                        return (
+                          <div key={task.id} className={`flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 ${isOverdue ? 'bg-red-50/50' : ''}`}>
+                            <button onClick={() => toggleTask(task.id, true)}
+                              className="shrink-0 w-4 h-4 rounded border border-gray-300 hover:border-tc-blue flex items-center justify-center transition" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm text-gray-800 block">{task.title}</span>
+                              {task.assignedTo && <span className="text-[11px] text-gray-400">{task.assignedTo.name}</span>}
+                            </div>
+                            {task.dueDate && (
+                              <span className={`flex items-center gap-1 text-xs shrink-0 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                                {isOverdue && <AlertCircle size={12} />}
+                                {new Date(task.dueDate).toLocaleDateString('de-DE')}
+                              </span>
+                            )}
+                            <button onClick={() => deleteTask(task.id)} className="text-gray-300 hover:text-red-500 transition"><Trash size={13} /></button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {completedTasks.length > 0 && (
+                      <div>
+                        <button onClick={() => setShowCompleted(!showCompleted)}
+                          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition">
+                          {showCompleted ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          {completedTasks.length} erledigt{completedTasks.length !== 1 ? 'e' : 'e'} Aufgabe{completedTasks.length !== 1 ? 'n' : ''}
+                        </button>
+                        {showCompleted && (
+                          <div className="space-y-1 mt-2">
+                            {completedTasks.map(task => (
+                              <div key={task.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 opacity-60">
+                                <button onClick={() => toggleTask(task.id, false)}
+                                  className="shrink-0 w-4 h-4 rounded border bg-green-500 border-green-500 text-white flex items-center justify-center transition">
+                                  <CheckSquare size={10} />
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm line-through text-gray-400 block">{task.title}</span>
+                                  {task.assignedTo && <span className="text-[11px] text-gray-300">{task.assignedTo.name}</span>}
+                                </div>
+                                <button onClick={() => deleteTask(task.id)} className="text-gray-300 hover:text-red-500 transition"><Trash size={13} /></button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <AttachmentSection
-                attachments={attachments}
-                opportunityId={opp.id}
-                onChange={setAttachments}
-              />
-
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">Erstellt: {formatDate(opp.createdAt)}</span>
-                <button onClick={saveChanges} disabled={saving}
-                  className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
-                  <Save size={14} /> {saving ? 'Speichern…' : 'Speichern'}
+              {/* Attachments Section */}
+              <div className={`border border-gray-100 rounded-xl ${mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
+                <button onClick={() => setAttachmentsCollapsed(!attachmentsCollapsed)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Anhänge ({attachments.length})
+                  </span>
+                  {attachmentsCollapsed ? <ChevronRight size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
                 </button>
+                {!attachmentsCollapsed && (
+                  <div className="px-4 pb-4">
+                    <AttachmentSection
+                      attachments={attachments}
+                      opportunityId={opp.id}
+                      onChange={setAttachments}
+                    />
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
 
-          {/* NOTES */}
-          {tab === 'notes' && (
-            <div className="p-6 space-y-4">
+          {/* RIGHT PANEL — Notes/Timeline */}
+          <div className={`flex-1 flex flex-col overflow-hidden ${
+            mobileTab !== 'timeline' ? 'hidden lg:flex' : 'flex'
+          }`}>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+              {/* Action Buttons */}
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm text-gray-700">Deal-Notizen</h3>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {isRecruiting ? 'Bewerbungs-Notizen' : 'Deal-Notizen'}
+                </h3>
                 <div className="flex gap-2">
                   <button onClick={fetchFollowUp} disabled={followUpLoading}
                     className="flex items-center gap-1.5 text-xs bg-tc-blue/10 hover:bg-tc-blue/20 text-tc-dark border border-tc-blue/30 px-3 py-1.5 rounded-lg transition disabled:opacity-40">
@@ -596,6 +735,25 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                 </div>
               </div>
 
+              {/* Note Input */}
+              <div className="flex gap-2">
+                <textarea value={noteText} onChange={e => setNoteText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) addNote(); }}
+                  placeholder="Deal-Notiz… (Strg+Enter)" rows={2}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue resize-none" />
+                <button onClick={addNote} disabled={addingNote || !noteText.trim()}
+                  className="self-end bg-tc-dark hover:bg-tc-dark/90 text-white p-2.5 rounded-lg transition disabled:opacity-50">
+                  <Send size={16} />
+                </button>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={contactMade} onChange={(e) => setContactMade(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-tc-blue focus:ring-tc-blue" />
+                <span className="text-xs text-gray-600">Kontakt hergestellt</span>
+                <span className="text-[11px] text-gray-400">(setzt letzten Kontakt am Lead)</span>
+              </label>
+
+              {/* AI Summary */}
               {aiError && <div className="text-xs text-red-600 bg-red-50 rounded-lg p-3">{aiError}</div>}
               {aiSummary && (
                 <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 space-y-3 text-sm">
@@ -636,6 +794,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                 </div>
               )}
 
+              {/* Follow-Up */}
               {followUpError && <div className="text-xs text-red-600 bg-red-50 rounded-lg p-3">{followUpError}</div>}
               {followUp && (
                 <div className="bg-tc-blue/10 border border-tc-blue/30 rounded-xl p-4 space-y-2 text-sm">
@@ -644,18 +803,10 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                     <button onClick={() => copyToClipboard(`Betreff: ${followUp.subject}\n\n${followUp.body}`)}
                       className="text-xs text-tc-blue hover:text-tc-dark">{copied ? 'Kopiert!' : 'Kopieren'}</button>
                   </div>
-                  <input
-                    value={followUp.subject}
-                    onChange={e => setFollowUp({ ...followUp, subject: e.target.value })}
-                    className="w-full border border-tc-blue/20 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-tc-blue"
-                    placeholder="Betreff"
-                  />
-                  <textarea
-                    value={followUp.body}
-                    onChange={e => setFollowUp({ ...followUp, body: e.target.value })}
-                    rows={6}
-                    className="w-full border border-tc-blue/20 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-tc-blue resize-none leading-relaxed"
-                  />
+                  <input value={followUp.subject} onChange={e => setFollowUp({ ...followUp, subject: e.target.value })}
+                    className="w-full border border-tc-blue/20 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-tc-blue" placeholder="Betreff" />
+                  <textarea value={followUp.body} onChange={e => setFollowUp({ ...followUp, body: e.target.value })}
+                    rows={6} className="w-full border border-tc-blue/20 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-tc-blue resize-none leading-relaxed" />
                   <div className="flex items-center gap-2">
                     {opp?.lead.email ? (
                       <button
@@ -666,18 +817,9 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ to: opp.lead.email, subject: followUp.subject, bodyText: followUp.body }),
                             });
-                            if (res.ok) {
-                              setFollowUp(null);
-                              setFollowUpNoteId(null);
-                              setFollowUpError('');
-                              alert('E-Mail gesendet!');
-                            } else {
-                              const data = await res.json().catch(() => ({}));
-                              setFollowUpError(data.error ?? 'Senden fehlgeschlagen');
-                            }
-                          } catch {
-                            setFollowUpError('Verbindungsfehler');
-                          }
+                            if (res.ok) { setFollowUp(null); setFollowUpNoteId(null); setFollowUpError(''); alert('E-Mail gesendet!'); }
+                            else { const data = await res.json().catch(() => ({})); setFollowUpError(data.error ?? 'Senden fehlgeschlagen'); }
+                          } catch { setFollowUpError('Verbindungsfehler'); }
                         }}
                         className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
                       >
@@ -686,36 +828,15 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                     ) : (
                       <p className="text-xs text-gray-400">Lead hat keine E-Mail-Adresse</p>
                     )}
-                    <button
-                      onClick={discardFollowUp}
-                      className="flex items-center gap-1.5 text-gray-500 hover:text-red-600 text-sm px-3 py-2 rounded-lg border border-gray-200 hover:border-red-200 transition"
-                    >
+                    <button onClick={discardFollowUp}
+                      className="flex items-center gap-1.5 text-gray-500 hover:text-red-600 text-sm px-3 py-2 rounded-lg border border-gray-200 hover:border-red-200 transition">
                       <X size={14} /> Verwerfen
                     </button>
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-2">
-                <textarea value={noteText} onChange={e => setNoteText(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) addNote(); }}
-                  placeholder="Deal-Notiz… (Strg+Enter)" rows={2}
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue resize-none" />
-                <button onClick={addNote} disabled={addingNote || !noteText.trim()}
-                  className="self-end bg-tc-dark hover:bg-tc-dark/90 text-white p-2.5 rounded-lg transition disabled:opacity-50">
-                  <Send size={16} />
-                </button>
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={contactMade}
-                  onChange={(e) => setContactMade(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-tc-blue focus:ring-tc-blue"
-                />
-                <span className="text-xs text-gray-600">Kontakt hergestellt</span>
-                <span className="text-[11px] text-gray-400">(setzt letzten Kontakt am Lead)</span>
-              </label>
+              {/* Notes List */}
               <div className="space-y-2">
                 {notes.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Noch keine Notizen</p>}
                 {notes.map(note => (
@@ -731,90 +852,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                 ))}
               </div>
             </div>
-          )}
-
-          {/* TASKS */}
-          {tab === 'tasks' && (() => {
-            const openTasks = tasks.filter(t => !t.isCompleted);
-            const completedTasks = tasks.filter(t => t.isCompleted);
-            return (
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm text-gray-700">Deal-Aufgaben</h3>
-                {completedTasks.length > 0 && (
-                  <span className="text-xs text-gray-400">{completedTasks.length} erledigt</span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') addTask(); }} placeholder="Neue Aufgabe…"
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
-                <input type="date" value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)}
-                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
-                <button onClick={addTask} disabled={addingTask || !newTaskTitle.trim()}
-                  className="bg-tc-dark hover:bg-tc-dark/90 text-white px-3 py-2 rounded-lg transition disabled:opacity-50">
-                  <Plus size={16} />
-                </button>
-              </div>
-              <div className="space-y-1">
-                {!tasksLoaded && <p className="text-sm text-gray-400 text-center py-4">Lädt…</p>}
-                {tasksLoaded && tasks.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Keine Aufgaben</p>}
-                {openTasks.map(task => {
-                  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
-                  return (
-                    <div key={task.id} className={`flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 ${isOverdue ? 'bg-red-50/50' : ''}`}>
-                      <button onClick={() => toggleTask(task.id, true)}
-                        className="shrink-0 w-4 h-4 rounded border border-gray-300 hover:border-tc-blue flex items-center justify-center transition" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm text-gray-800 block">{task.title}</span>
-                        {task.assignedTo && (
-                          <span className="text-[11px] text-gray-400">{task.assignedTo.name}</span>
-                        )}
-                      </div>
-                      {task.dueDate && (
-                        <span className={`flex items-center gap-1 text-xs shrink-0 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-                          {isOverdue && <AlertCircle size={12} />}
-                          {new Date(task.dueDate).toLocaleDateString('de-DE')}
-                        </span>
-                      )}
-                      <button onClick={() => deleteTask(task.id)} className="text-gray-300 hover:text-red-500 transition"><Trash size={13} /></button>
-                    </div>
-                  );
-                })}
-              </div>
-              {completedTasks.length > 0 && (
-                <div>
-                  <button
-                    onClick={() => setShowCompleted(!showCompleted)}
-                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition"
-                  >
-                    {showCompleted ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    {completedTasks.length} erledigt{completedTasks.length !== 1 ? 'e' : 'e'} Aufgabe{completedTasks.length !== 1 ? 'n' : ''}
-                  </button>
-                  {showCompleted && (
-                    <div className="space-y-1 mt-2">
-                      {completedTasks.map(task => (
-                        <div key={task.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 opacity-60">
-                          <button onClick={() => toggleTask(task.id, false)}
-                            className="shrink-0 w-4 h-4 rounded border bg-green-500 border-green-500 text-white flex items-center justify-center transition">
-                            <CheckSquare size={10} />
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-sm line-through text-gray-400 block">{task.title}</span>
-                            {task.assignedTo && (
-                              <span className="text-[11px] text-gray-300">{task.assignedTo.name}</span>
-                            )}
-                          </div>
-                          <button onClick={() => deleteTask(task.id)} className="text-gray-300 hover:text-red-500 transition"><Trash size={13} /></button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            );
-          })()}
+          </div>
         </div>
       </div>
 
