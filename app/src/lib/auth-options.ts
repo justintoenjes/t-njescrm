@@ -4,6 +4,29 @@ import AzureADProvider from 'next-auth/providers/azure-ad';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
 
+// Azure AD group IDs for role mapping
+const AZURE_GROUP_ADMIN = '2bbb6468-8e13-4ddc-808c-05bdec833c62'; // CRM_Admin
+const AZURE_GROUP_USER = 'db55cc80-7ae4-467a-ac6d-49df5271c0e0';  // CRM_Benutzer
+
+async function getAzureGroupIds(accessToken: string): Promise<string[]> {
+  try {
+    const res = await fetch('https://graph.microsoft.com/v1.0/me/memberOf?$select=id', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.value ?? []).map((g: any) => g.id);
+  } catch {
+    return [];
+  }
+}
+
+function resolveRoleFromGroups(groupIds: string[]): 'ADMIN' | 'USER' | null {
+  if (groupIds.includes(AZURE_GROUP_ADMIN)) return 'ADMIN';
+  if (groupIds.includes(AZURE_GROUP_USER)) return 'USER';
+  return null; // Not in any CRM group → deny access
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     AzureADProvider({
@@ -39,6 +62,18 @@ export const authOptions: NextAuthOptions = {
   ],
   session: { strategy: 'jwt' },
   callbacks: {
+    async signIn({ account }) {
+      // For Azure AD: check group membership before allowing sign-in
+      if (account?.provider === 'azure-ad' && account.access_token) {
+        const groupIds = await getAzureGroupIds(account.access_token);
+        const role = resolveRoleFromGroups(groupIds);
+        if (!role) {
+          // Not in CRM_Admin or CRM_Benutzer → block login
+          return '/login?error=NoGroupAccess';
+        }
+      }
+      return true;
+    },
     async jwt({ token, user, account }) {
       // On initial sign-in
       if (user) {
@@ -56,18 +91,33 @@ export const authOptions: NextAuthOptions = {
         token.refreshToken = account.refresh_token;
         token.accessTokenExpires = account.expires_at ? account.expires_at * 1000 : 0;
 
-        // Find or create user in our DB
+        // Check Azure AD group membership → determine role
+        const groupIds = account.access_token ? await getAzureGroupIds(account.access_token) : [];
+        const role = resolveRoleFromGroups(groupIds);
+
+        if (!role) {
+          // User not in any CRM group → deny access
+          token.error = 'NoGroupAccess';
+          return token;
+        }
+
+        // Find or create user in our DB, sync role from Azure groups
         const email = token.email as string;
         let dbUser = await prisma.user.findUnique({ where: { email } });
         if (!dbUser) {
-          // Auto-create user from Azure AD with USER role
           dbUser = await prisma.user.create({
             data: {
               name: token.name as string ?? email.split('@')[0],
               email,
               password: '', // SSO user, no password
-              role: 'USER',
+              role,
             },
+          });
+        } else if (dbUser.role !== role) {
+          // Sync role from Azure AD groups on every login
+          dbUser = await prisma.user.update({
+            where: { id: dbUser.id },
+            data: { role },
           });
         }
         token.id = dbUser.id;
@@ -114,6 +164,6 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  pages: { signIn: '/login' },
+  pages: { signIn: '/login', error: '/login' },
   secret: process.env.NEXTAUTH_SECRET,
 };

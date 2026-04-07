@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, ChevronRight } from 'lucide-react';
@@ -12,7 +12,13 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showCredentials, setShowCredentials] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setUrlError(params.get('error'));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,6 +55,13 @@ export default function LoginPage() {
         <p className="text-center text-xs text-gray-400 mt-3">
           Empfohlen — ermöglicht E-Mail-Integration
         </p>
+
+        {urlError === 'NoGroupAccess' && (
+          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+            <p className="text-sm text-red-700 font-medium">Kein Zugriff</p>
+            <p className="text-xs text-red-600 mt-1">Dein Konto ist keiner CRM-Gruppe zugewiesen. Bitte wende dich an einen Administrator.</p>
+          </div>
+        )}
 
         <div className="mt-6">
           <button
