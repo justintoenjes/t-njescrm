@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Save, Phone, Mail, User, ArrowRightLeft } from 'lucide-react';
+import { Save, Phone, Mail, User, ArrowRightLeft, KeyRound } from 'lucide-react';
 import Header from '@/components/Header';
 
 export default function SettingsPage() {
@@ -18,6 +18,13 @@ export default function SettingsPage() {
   const [sigSaving, setSigSaving] = useState(false);
   const [sigSaved, setSigSaved] = useState(false);
   const [sigError, setSigError] = useState('');
+  const [hasPassword, setHasPassword] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState('');
+  const [pwError, setPwError] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/login');
@@ -29,6 +36,7 @@ export default function SettingsPage() {
       if (data.nameOrder) setNameOrder(data.nameOrder);
       if (data.dialMethod) setDialMethod(data.dialMethod);
       if (data.emailSignature !== undefined) setEmailSignature(data.emailSignature);
+      if (data.hasPassword !== undefined) setHasPassword(data.hasPassword);
     }).catch(() => {});
   }, [status]);
 
@@ -160,6 +168,82 @@ export default function SettingsPage() {
             </button>
             {sigSaved && <span className="text-green-600 text-sm font-medium">✓ Gespeichert</span>}
             {sigError && <span className="text-red-500 text-sm font-medium">{sigError}</span>}
+          </div>
+        </div>
+        {/* Password Management */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-amber-100 p-2 rounded-lg">
+              <KeyRound size={20} className="text-amber-600" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-gray-900">Passwort</h2>
+              <p className="text-sm text-gray-500">
+                {hasPassword ? 'Passwort ändern oder entfernen' : 'Passwort setzen (aktuell nur SSO)'}
+              </p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {hasPassword && (
+              <input type="password" placeholder="Aktuelles Passwort" value={pwCurrent}
+                onChange={e => setPwCurrent(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <input type="password" placeholder="Neues Passwort (min. 6)" value={pwNew}
+                onChange={e => setPwNew(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+              <input type="password" placeholder="Passwort bestätigen" value={pwConfirm}
+                onChange={e => setPwConfirm(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                if (pwNew !== pwConfirm) { setPwMsg('Passwörter stimmen nicht überein'); setPwError(true); setTimeout(() => setPwMsg(''), 3000); return; }
+                if (pwNew.length < 6) { setPwMsg('Mindestens 6 Zeichen'); setPwError(true); setTimeout(() => setPwMsg(''), 3000); return; }
+                setPwSaving(true); setPwMsg(''); setPwError(false);
+                const res = await fetch('/api/profile', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ currentPassword: pwCurrent || undefined, newPassword: pwNew }),
+                });
+                setPwSaving(false);
+                if (res.ok) {
+                  setPwMsg('Passwort gespeichert'); setPwError(false); setHasPassword(true);
+                  setPwCurrent(''); setPwNew(''); setPwConfirm('');
+                } else {
+                  const e = await res.json();
+                  setPwMsg(e.error ?? 'Fehler'); setPwError(true);
+                }
+                setTimeout(() => setPwMsg(''), 3000);
+              }}
+              disabled={pwSaving || !pwNew || pwNew !== pwConfirm}
+              className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
+              <Save size={14} /> {pwSaving ? 'Speichern…' : hasPassword ? 'Passwort ändern' : 'Passwort setzen'}
+            </button>
+            {hasPassword && (
+              <button
+                onClick={async () => {
+                  if (!confirm('Passwort wirklich löschen? Du kannst dich dann nur noch per SSO anmelden.')) return;
+                  setPwSaving(true);
+                  const res = await fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deletePassword: true }),
+                  });
+                  setPwSaving(false);
+                  if (res.ok) { setPwMsg('Passwort gelöscht'); setPwError(false); setHasPassword(false); }
+                  else { setPwMsg('Fehler'); setPwError(true); }
+                  setTimeout(() => setPwMsg(''), 3000);
+                }}
+                disabled={pwSaving}
+                className="text-red-500 hover:text-red-700 text-sm px-3 py-2 rounded-lg border border-red-200 hover:bg-red-50 transition disabled:opacity-50">
+                Passwort löschen
+              </button>
+            )}
+            {pwMsg && <span className={`text-sm font-medium ${pwError ? 'text-red-500' : 'text-green-600'}`}>{pwMsg}</span>}
           </div>
         </div>
       </main>

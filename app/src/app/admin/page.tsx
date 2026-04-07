@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Save, Thermometer, UserPlus, Users, KeyRound, Mail, FileText, Shield, Package, ArrowRight } from 'lucide-react';
+import { Save, Thermometer, UserPlus, Users, KeyRound, Mail, FileText, Shield, Package, ArrowRight, Trash2 } from 'lucide-react';
 import Header from '@/components/Header';
 
 type AdminTab = 'texte' | 'benutzer';
@@ -151,6 +151,19 @@ export default function AdminPage() {
       setUserMsg('Passwort zurückgesetzt');
       setResetUserId(null);
       setResetPassword('');
+    } else {
+      const e = await res.json();
+      setUserMsg(e.error ?? 'Fehler');
+    }
+    setTimeout(() => setUserMsg(''), 2500);
+  }
+
+  async function deleteUser(userId: string, userName: string) {
+    if (!confirm(`Benutzer "${userName}" wirklich löschen? Zugewiesene Leads/Anfragen werden freigegeben.`)) return;
+    const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      setUserMsg('Benutzer gelöscht');
     } else {
       const e = await res.json();
       setUserMsg(e.error ?? 'Fehler');
@@ -396,8 +409,12 @@ export default function AdminPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button onClick={() => setResetUserId(resetUserId === u.id ? null : u.id)}
-                          className="text-gray-400 hover:text-tc-blue transition p-1 rounded" title="Passwort zurücksetzen">
+                          className="text-gray-400 hover:text-tc-blue transition p-1 rounded" title="Passwort verwalten">
                           <KeyRound size={15} />
+                        </button>
+                        <button onClick={() => deleteUser(u.id, u.name)}
+                          className="text-gray-400 hover:text-red-500 transition p-1 rounded" title="Benutzer löschen">
+                          <Trash2 size={15} />
                         </button>
                         <span className={`text-xs font-medium px-2 py-1 rounded-full ${u.role === 'ADMIN' ? 'bg-tc-blue/20 text-tc-dark' : 'bg-gray-100 text-gray-600'}`}>
                           {u.role}

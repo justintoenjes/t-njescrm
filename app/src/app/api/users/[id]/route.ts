@@ -35,3 +35,20 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
 
   return NextResponse.json({ ok: true });
 }
+
+// DELETE /api/users/[id] — Admin: delete user
+export async function DELETE(_: NextRequest, { params }: Ctx) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const { id } = await params;
+  if (id === session.user.id) return NextResponse.json({ error: 'Kann sich nicht selbst löschen' }, { status: 400 });
+
+  // Unassign leads and opportunities before deleting
+  await prisma.lead.updateMany({ where: { assignedToId: id }, data: { assignedToId: null } });
+  await prisma.opportunity.updateMany({ where: { assignedToId: id }, data: { assignedToId: null } });
+  await prisma.user.delete({ where: { id } });
+
+  return NextResponse.json({ ok: true });
+}

@@ -17,7 +17,8 @@ import CompanyDetailModal from '@/components/CompanyDetailModal';
 import TemplateDetailModal from '@/components/TemplateDetailModal';
 import { OPP_STAGE_LABELS, OPP_STAGE_ORDER, OPP_STAGE_COLORS, OpportunityStage, getStageOrder } from '@/lib/opportunity';
 import { TEMP_LABELS, TEMP_COLORS, Temperature } from '@/lib/temperature';
-import { GripVertical, Plus, X } from 'lucide-react';
+import { GripVertical, Plus, X, FileText, Mail } from 'lucide-react';
+import CompanyPicker from '@/components/CompanyPicker';
 import { useCategory } from '@/lib/category-context';
 
 interface OppCard {
@@ -119,42 +120,124 @@ export default function PipelinePage() {
   const [openCompanyId, setOpenCompanyId] = useState<string | null>(null);
   const [openTemplateId, setOpenTemplateId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [newOpp, setNewOpp] = useState({ title: '', value: '', leadSearch: '', leadId: '' });
+  const [templates, setTemplates] = useState<{ id: string; name: string; defaultValue: number | null }[]>([]);
+  // Lead selection or creation
+  const [leadSearch, setLeadSearch] = useState('');
   const [leadResults, setLeadResults] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
+  const [selectedLeadForCreate, setSelectedLeadForCreate] = useState<{ id: string; name: string } | null>(null);
+  const [newLeadMode, setNewLeadMode] = useState(false);
+  const [newLeadForm, setNewLeadForm] = useState({ firstName: '', lastName: '', email: '', phone: '', companyId: '', companyName: '' });
+  // Opp fields
+  const [oppTitle, setOppTitle] = useState('');
+  const [oppValue, setOppValue] = useState('');
+  const [oppTemplateId, setOppTemplateId] = useState('');
+  // File upload
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const [creatingOpp, setCreatingOpp] = useState(false);
 
+  // Load templates when create opens
   useEffect(() => {
-    if (!newOpp.leadSearch || newOpp.leadSearch.length < 2) { setLeadResults([]); return; }
+    if (!showCreate) return;
+    fetch(`/api/templates?category=${category}`).then(r => r.json()).then(data => {
+      setTemplates(data.map((t: any) => ({ id: t.id, name: t.name, defaultValue: t.defaultValue })));
+    }).catch(() => {});
+  }, [showCreate, category]);
+
+  // Debounced lead search
+  useEffect(() => {
+    if (!leadSearch || leadSearch.length < 2) { setLeadResults([]); return; }
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/leads?search=${encodeURIComponent(newOpp.leadSearch)}&category=${category}`);
+      const res = await fetch(`/api/leads?search=${encodeURIComponent(leadSearch)}&category=${category}`);
       if (res.ok) {
         const data = await res.json();
         setLeadResults(data.map((l: any) => ({ id: l.id, firstName: l.firstName, lastName: l.lastName })));
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [newOpp.leadSearch, category]);
+  }, [leadSearch, category]);
 
-  async function createOpp() {
-    if (!newOpp.title.trim() || !newOpp.leadId) return;
+  function handleTemplateSelect(templateId: string) {
+    setOppTemplateId(templateId);
+    const tpl = templates.find(t => t.id === templateId);
+    if (tpl) {
+      if (!oppTitle) setOppTitle(tpl.name);
+      if (!oppValue && tpl.defaultValue) setOppValue(String(tpl.defaultValue));
+    }
+  }
+
+  async function handleFileUpload(file: File) {
+    setCvFile(file);
+    setExtracting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/extract-cv', { method: 'POST', body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.firstName) setNewLeadForm(prev => ({ ...prev, firstName: prev.firstName || data.firstName }));
+        if (data.lastName) setNewLeadForm(prev => ({ ...prev, lastName: prev.lastName || data.lastName }));
+        if (data.email) setNewLeadForm(prev => ({ ...prev, email: prev.email || data.email }));
+        if (data.phone) setNewLeadForm(prev => ({ ...prev, phone: prev.phone || data.phone }));
+      }
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  function resetCreateForm() {
+    setShowCreate(false);
+    setLeadSearch(''); setLeadResults([]); setSelectedLeadForCreate(null);
+    setNewLeadMode(false); setNewLeadForm({ firstName: '', lastName: '', email: '', phone: '', companyId: '', companyName: '' });
+    setOppTitle(''); setOppValue(''); setOppTemplateId('');
+    setCvFile(null);
+  }
+
+  async function submitCreateOpp() {
     setCreatingOpp(true);
     try {
+      let leadId = selectedLeadForCreate?.id;
+      // Create new lead if needed
+      if (newLeadMode && !leadId) {
+        if (!newLeadForm.firstName.trim()) return;
+        const leadRes = await fetch('/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            firstName: newLeadForm.firstName.trim(),
+            lastName: newLeadForm.lastName.trim(),
+            email: newLeadForm.email.trim() || null,
+            phone: newLeadForm.phone.trim() || null,
+            companyId: newLeadForm.companyId || null,
+            category,
+          }),
+        });
+        if (!leadRes.ok) return;
+        const lead = await leadRes.json();
+        leadId = lead.id;
+        // Upload file as attachment
+        if (cvFile && leadId) {
+          const fd = new FormData();
+          fd.append('file', cvFile);
+          fd.append('leadId', leadId);
+          await fetch('/api/attachments', { method: 'POST', body: fd });
+        }
+      }
+      if (!leadId || !oppTitle.trim()) return;
       const stage = category === 'RECRUITING' ? 'SCREENING' : 'PROPOSAL';
-      const res = await fetch('/api/opportunities', {
+      await fetch('/api/opportunities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: newOpp.title.trim(),
-          leadId: newOpp.leadId,
-          value: newOpp.value ? parseFloat(newOpp.value) : null,
+          title: oppTitle.trim(),
+          leadId,
+          value: oppValue ? parseFloat(oppValue) : null,
+          templateId: oppTemplateId || null,
           stage,
         }),
       });
-      if (res.ok) {
-        setNewOpp({ title: '', value: '', leadSearch: '', leadId: '' });
-        setShowCreate(false);
-        load();
-      }
+      resetCreateForm();
+      load();
     } finally {
       setCreatingOpp(false);
     }
@@ -188,8 +271,10 @@ export default function PipelinePage() {
     const openId = params.get('open');
     const openLeadId = params.get('openLead');
     if (status !== 'authenticated') return;
+    const create = params.get('create');
     if (openId) { setOpenOppId(openId); window.history.replaceState(null, '', '/pipeline'); }
     if (openLeadId) { openLead(openLeadId); window.history.replaceState(null, '', '/pipeline'); }
+    if (create === 'true') { setShowCreate(true); window.history.replaceState(null, '', '/pipeline'); }
   }, [status]);
 
   const byStage = (stage: OpportunityStage) => opps.filter(o => o.stage === stage);
@@ -263,57 +348,119 @@ export default function PipelinePage() {
           </button>
         </div>
 
-        {/* Create Opportunity Form */}
+        {/* Create Opportunity Modal */}
         {showCreate && (
-          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-700">{category === 'RECRUITING' ? 'Neue Bewerbung' : 'Neue Anfrage'}</h2>
-              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="relative">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => e.target === e.currentTarget && resetCreateForm()}>
+            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold">{category === 'RECRUITING' ? 'Neue Bewerbung' : 'Neue Anfrage'}</h2>
+                <button onClick={resetCreateForm} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+              </div>
+
+              {/* Step 1: Select or create contact */}
+              <div>
                 <label className="text-xs text-gray-500 font-medium">Kontakt *</label>
-                {newOpp.leadId ? (
+                {selectedLeadForCreate ? (
                   <div className="flex items-center gap-2 mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
-                    <span className="flex-1">{leadResults.find(l => l.id === newOpp.leadId)?.firstName} {leadResults.find(l => l.id === newOpp.leadId)?.lastName}</span>
-                    <button onClick={() => setNewOpp({ ...newOpp, leadId: '', leadSearch: '' })} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                    <span className="flex-1 font-medium">{selectedLeadForCreate.name}</span>
+                    <button onClick={() => { setSelectedLeadForCreate(null); setNewLeadMode(false); }} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
                   </div>
-                ) : (
-                  <>
-                    <input
-                      value={newOpp.leadSearch}
-                      onChange={e => setNewOpp({ ...newOpp, leadSearch: e.target.value })}
-                      placeholder="Kontakt suchen…"
-                      autoFocus
-                      className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
-                    />
-                    {leadResults.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
+                ) : !newLeadMode ? (
+                  <div className="relative mt-1">
+                    <input value={leadSearch} onChange={e => setLeadSearch(e.target.value)}
+                      placeholder="Kontakt suchen oder neu anlegen…" autoFocus
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                    {(leadResults.length > 0 || leadSearch.length >= 2) && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
                         {leadResults.map(l => (
-                          <button key={l.id} onClick={() => setNewOpp({ ...newOpp, leadId: l.id, leadSearch: '' })}
+                          <button key={l.id} onClick={() => { setSelectedLeadForCreate({ id: l.id, name: `${l.firstName} ${l.lastName}`.trim() }); setLeadSearch(''); setLeadResults([]); }}
                             className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">{`${l.firstName} ${l.lastName}`.trim()}</button>
                         ))}
+                        <button onClick={() => { setNewLeadMode(true); setLeadSearch(''); setLeadResults([]); }}
+                          className="w-full text-left px-3 py-2 text-sm text-tc-blue hover:bg-tc-blue/10 font-medium flex items-center gap-1.5">
+                          <Plus size={13} /> Neuen Kontakt anlegen
+                        </button>
                       </div>
                     )}
-                  </>
+                  </div>
+                ) : (
+                  <div className="mt-1 space-y-2">
+                    {/* File Upload */}
+                    <div className="relative border-2 border-dashed border-gray-200 rounded-xl p-3 text-center hover:border-tc-blue/50 transition">
+                      {cvFile ? (
+                        <div className="flex items-center justify-center gap-2 text-sm">
+                          {cvFile.name.endsWith('.eml') ? <Mail size={16} className="text-tc-blue" /> : <FileText size={16} className="text-red-400" />}
+                          <span className="text-gray-700 truncate max-w-[200px]">{cvFile.name}</span>
+                          {extracting && <span className="text-tc-blue text-xs animate-pulse">Lese aus…</span>}
+                          <button onClick={() => setCvFile(null)} className="text-gray-400 hover:text-red-500 text-xs ml-1">✕</button>
+                        </div>
+                      ) : (
+                        <div>
+                          <FileText size={18} className="mx-auto text-gray-300 mb-1" />
+                          <p className="text-xs text-gray-400">{category === 'RECRUITING' ? 'Anschreiben/CV' : 'Dokument'} hochladen (optional)</p>
+                        </div>
+                      )}
+                      {!cvFile && (
+                        <input type="file" accept="application/pdf,.eml,message/rfc822"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input placeholder="Vorname *" value={newLeadForm.firstName}
+                        onChange={e => setNewLeadForm({ ...newLeadForm, firstName: e.target.value })}
+                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                      <input placeholder="Nachname" value={newLeadForm.lastName}
+                        onChange={e => setNewLeadForm({ ...newLeadForm, lastName: e.target.value })}
+                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                      <input placeholder="E-Mail" value={newLeadForm.email}
+                        onChange={e => setNewLeadForm({ ...newLeadForm, email: e.target.value })}
+                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                      <input placeholder="Telefon" value={newLeadForm.phone}
+                        onChange={e => setNewLeadForm({ ...newLeadForm, phone: e.target.value })}
+                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                    </div>
+                    {category === 'VERTRIEB' && (
+                      <CompanyPicker value={newLeadForm.companyId} displayName={newLeadForm.companyName}
+                        onChange={(id, name) => setNewLeadForm({ ...newLeadForm, companyId: id, companyName: name })} />
+                    )}
+                    <button onClick={() => setNewLeadMode(false)} className="text-xs text-gray-400 hover:text-gray-600">Abbrechen</button>
+                  </div>
                 )}
               </div>
-              <div>
-                <label className="text-xs text-gray-500 font-medium">Titel *</label>
-                <input value={newOpp.title} onChange={e => setNewOpp({ ...newOpp, title: e.target.value })}
-                  placeholder={category === 'RECRUITING' ? 'Bewerbungstitel' : 'Anfragetitel'}
-                  onKeyDown={e => { if (e.key === 'Enter') createOpp(); }}
-                  className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
-              </div>
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <label className="text-xs text-gray-500 font-medium">Wert (€)</label>
-                  <input type="number" value={newOpp.value} onChange={e => setNewOpp({ ...newOpp, value: e.target.value })} placeholder="optional"
-                    onKeyDown={e => { if (e.key === 'Enter') createOpp(); }}
+
+              {/* Template/Stelle Picker */}
+              {templates.length > 0 && (
+                <div>
+                  <label className="text-xs text-gray-500 font-medium">{category === 'RECRUITING' ? 'Stelle' : 'Produkt'}</label>
+                  <select value={oppTemplateId} onChange={e => handleTemplateSelect(e.target.value)}
+                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue">
+                    <option value="">— Auswählen (optional) —</option>
+                    {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Opp Title & Value */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 font-medium">Titel *</label>
+                  <input value={oppTitle} onChange={e => setOppTitle(e.target.value)}
+                    placeholder={category === 'RECRUITING' ? 'Bewerbungstitel' : 'Anfragetitel'}
                     className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
                 </div>
-                <button onClick={createOpp} disabled={creatingOpp || !newOpp.title.trim() || !newOpp.leadId}
-                  className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50 whitespace-nowrap">
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 font-medium">Wert (€)</label>
+                  <input type="number" value={oppValue} onChange={e => setOppValue(e.target.value)} placeholder="optional"
+                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={resetCreateForm} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">Abbrechen</button>
+                <button onClick={submitCreateOpp}
+                  disabled={creatingOpp || !oppTitle.trim() || (!selectedLeadForCreate && (!newLeadMode || !newLeadForm.firstName.trim()))}
+                  className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
                   {creatingOpp ? 'Erstelle…' : 'Anlegen'}
                 </button>
               </div>
