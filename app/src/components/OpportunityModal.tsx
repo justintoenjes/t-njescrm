@@ -10,6 +10,7 @@ import { NoteContent } from '@/components/NoteContent';
 import NoteCard from '@/components/NoteCard';
 import OppScoreBreakdownPopover from './OppScoreBreakdown';
 import AttachmentSection from './AttachmentSection';
+import TaskModal from './TaskModal';
 
 type AttachmentData = { id: string; fileName: string; fileSize: number; mimeType: string; createdAt: string; uploadedBy: { id: string; name: string } | null };
 type Note = { id: string; content: string; isAiGenerated?: boolean; createdAt: string; author: { id: string; name: string } | null };
@@ -82,6 +83,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDue, setNewTaskDue] = useState('');
   const [addingTask, setAddingTask] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState<AISummary | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
@@ -139,12 +141,15 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
       });
   }, [opportunityId]);
 
+  function loadTasks() {
+    if (!opp) return;
+    fetch(`/api/opportunities/${opp.id}/tasks`)
+      .then(r => r.json())
+      .then(data => { setTasks(data); setTasksLoaded(true); });
+  }
+
   useEffect(() => {
-    if (!tasksLoaded && opp) {
-      fetch(`/api/opportunities/${opp.id}/tasks`)
-        .then(r => r.json())
-        .then(data => { setTasks(data); setTasksLoaded(true); });
-    }
+    if (!tasksLoaded && opp) loadTasks();
   }, [opp, tasksLoaded]);
 
   async function doSave() {
@@ -644,8 +649,9 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                       {openTasks.map(task => {
                         const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
                         return (
-                          <div key={task.id} className={`flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 ${isOverdue ? 'bg-red-50/50' : ''}`}>
-                            <button onClick={() => toggleTask(task.id, true)}
+                          <div key={task.id} className={`flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 cursor-pointer ${isOverdue ? 'bg-red-50/50' : ''}`}
+                            onClick={() => setOpenTaskId(task.id)}>
+                            <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id, true); }}
                               className="shrink-0 w-4 h-4 rounded border border-gray-300 hover:border-tc-blue flex items-center justify-center transition" />
                             <div className="flex-1 min-w-0">
                               <span className="text-sm text-gray-800 block">{task.title}</span>
@@ -657,7 +663,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                                 {new Date(task.dueDate).toLocaleDateString('de-DE')}
                               </span>
                             )}
-                            <button onClick={() => deleteTask(task.id)} className="text-gray-300 hover:text-red-500 transition"><Trash size={13} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} className="text-gray-300 hover:text-red-500 transition"><Trash size={13} /></button>
                           </div>
                         );
                       })}
@@ -672,8 +678,9 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                         {showCompleted && (
                           <div className="space-y-1 mt-2">
                             {completedTasks.map(task => (
-                              <div key={task.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 opacity-60">
-                                <button onClick={() => toggleTask(task.id, false)}
+                              <div key={task.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 opacity-60 cursor-pointer"
+                                onClick={() => setOpenTaskId(task.id)}>
+                                <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id, false); }}
                                   className="shrink-0 w-4 h-4 rounded border bg-green-500 border-green-500 text-white flex items-center justify-center transition">
                                   <CheckSquare size={10} />
                                 </button>
@@ -681,7 +688,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                                   <span className="text-sm line-through text-gray-400 block">{task.title}</span>
                                   {task.assignedTo && <span className="text-[11px] text-gray-300">{task.assignedTo.name}</span>}
                                 </div>
-                                <button onClick={() => deleteTask(task.id)} className="text-gray-300 hover:text-red-500 transition"><Trash size={13} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} className="text-gray-300 hover:text-red-500 transition"><Trash size={13} /></button>
                               </div>
                             ))}
                           </div>
@@ -993,6 +1000,16 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
             </div>
           </div>
         </div>
+      )}
+      {openTaskId && (
+        <TaskModal
+          taskId={openTaskId}
+          users={users}
+          isAdmin={isAdmin}
+          onClose={() => { setOpenTaskId(null); loadTasks(); }}
+          onSaved={() => loadTasks()}
+          onDeleted={() => loadTasks()}
+        />
       )}
     </div>
   );

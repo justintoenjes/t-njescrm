@@ -173,13 +173,36 @@ export default function PipelinePage() {
       const formData = new FormData();
       formData.append('file', file);
       const res = await fetch('/api/extract-cv', { method: 'POST', body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.firstName) setNewLeadForm(prev => ({ ...prev, firstName: prev.firstName || data.firstName }));
-        if (data.lastName) setNewLeadForm(prev => ({ ...prev, lastName: prev.lastName || data.lastName }));
-        if (data.email) setNewLeadForm(prev => ({ ...prev, email: prev.email || data.email }));
-        if (data.phone) setNewLeadForm(prev => ({ ...prev, phone: prev.phone || data.phone }));
+      if (!res.ok) return;
+      const data = await res.json();
+
+      // Fill title from extracted data
+      if (data.title && !oppTitle) setOppTitle(data.title);
+
+      // Check if contact already exists by email
+      if (data.email) {
+        const searchRes = await fetch(`/api/leads?search=${encodeURIComponent(data.email)}&category=${category}`);
+        if (searchRes.ok) {
+          const leads = await searchRes.json();
+          const match = leads.find((l: any) => l.email?.toLowerCase() === data.email.toLowerCase());
+          if (match) {
+            // Existing contact found — select it
+            setSelectedLeadForCreate({ id: match.id, name: `${match.firstName} ${match.lastName}`.trim() });
+            setNewLeadMode(false);
+            return;
+          }
+        }
       }
+
+      // No existing contact — switch to new lead mode and pre-fill
+      setNewLeadMode(true);
+      setNewLeadForm(prev => ({
+        ...prev,
+        firstName: prev.firstName || data.firstName || '',
+        lastName: prev.lastName || data.lastName || '',
+        email: prev.email || data.email || '',
+        phone: prev.phone || data.phone || '',
+      }));
     } finally {
       setExtracting(false);
     }
@@ -215,17 +238,10 @@ export default function PipelinePage() {
         if (!leadRes.ok) return;
         const lead = await leadRes.json();
         leadId = lead.id;
-        // Upload file as attachment
-        if (cvFile && leadId) {
-          const fd = new FormData();
-          fd.append('file', cvFile);
-          fd.append('leadId', leadId);
-          await fetch('/api/attachments', { method: 'POST', body: fd });
-        }
       }
       if (!leadId || !oppTitle.trim()) return;
       const stage = category === 'RECRUITING' ? 'SCREENING' : 'PROPOSAL';
-      await fetch('/api/opportunities', {
+      const oppRes = await fetch('/api/opportunities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -236,6 +252,15 @@ export default function PipelinePage() {
           stage,
         }),
       });
+      // Upload file as attachment to the opportunity
+      if (cvFile && oppRes.ok) {
+        const opp = await oppRes.json();
+        const fd = new FormData();
+        fd.append('file', cvFile);
+        fd.append('opportunityId', opp.id);
+        fd.append('leadId', leadId);
+        await fetch('/api/attachments', { method: 'POST', body: fd });
+      }
       resetCreateForm();
       load();
     } finally {
@@ -357,6 +382,28 @@ export default function PipelinePage() {
                 <button onClick={resetCreateForm} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
               </div>
 
+              {/* File Upload — always visible at the top */}
+              <div className="relative border-2 border-dashed border-gray-200 rounded-xl p-3 text-center hover:border-tc-blue/50 transition">
+                {cvFile ? (
+                  <div className="flex items-center justify-center gap-2 text-sm">
+                    {cvFile.name.endsWith('.eml') ? <Mail size={16} className="text-tc-blue" /> : <FileText size={16} className="text-red-400" />}
+                    <span className="text-gray-700 truncate max-w-[200px]">{cvFile.name}</span>
+                    {extracting && <span className="text-tc-blue text-xs animate-pulse">Lese aus…</span>}
+                    <button onClick={() => setCvFile(null)} className="text-gray-400 hover:text-red-500 text-xs ml-1">✕</button>
+                  </div>
+                ) : (
+                  <div>
+                    <FileText size={18} className="mx-auto text-gray-300 mb-1" />
+                    <p className="text-xs text-gray-400">{category === 'RECRUITING' ? 'Anschreiben/CV/E-Mail' : 'Dokument/E-Mail'} hochladen — füllt Felder automatisch aus</p>
+                  </div>
+                )}
+                {!cvFile && (
+                  <input type="file" accept="application/pdf,.eml,message/rfc822"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
+                )}
+              </div>
+
               {/* Step 1: Select or create contact */}
               <div>
                 <label className="text-xs text-gray-500 font-medium">Kontakt *</label>
@@ -385,27 +432,6 @@ export default function PipelinePage() {
                   </div>
                 ) : (
                   <div className="mt-1 space-y-2">
-                    {/* File Upload */}
-                    <div className="relative border-2 border-dashed border-gray-200 rounded-xl p-3 text-center hover:border-tc-blue/50 transition">
-                      {cvFile ? (
-                        <div className="flex items-center justify-center gap-2 text-sm">
-                          {cvFile.name.endsWith('.eml') ? <Mail size={16} className="text-tc-blue" /> : <FileText size={16} className="text-red-400" />}
-                          <span className="text-gray-700 truncate max-w-[200px]">{cvFile.name}</span>
-                          {extracting && <span className="text-tc-blue text-xs animate-pulse">Lese aus…</span>}
-                          <button onClick={() => setCvFile(null)} className="text-gray-400 hover:text-red-500 text-xs ml-1">✕</button>
-                        </div>
-                      ) : (
-                        <div>
-                          <FileText size={18} className="mx-auto text-gray-300 mb-1" />
-                          <p className="text-xs text-gray-400">{category === 'RECRUITING' ? 'Anschreiben/CV' : 'Dokument'} hochladen (optional)</p>
-                        </div>
-                      )}
-                      {!cvFile && (
-                        <input type="file" accept="application/pdf,.eml,message/rfc822"
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
-                      )}
-                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <input placeholder="Vorname *" value={newLeadForm.firstName}
                         onChange={e => setNewLeadForm({ ...newLeadForm, firstName: e.target.value })}

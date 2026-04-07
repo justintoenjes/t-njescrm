@@ -43,3 +43,32 @@ export async function GET(request: NextRequest) {
   });
   return NextResponse.json(tasks);
 }
+
+export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  let body;
+  try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
+  const { title, description, dueDate, assignedToId, leadId, opportunityId } = body;
+  if (!title?.trim()) return NextResponse.json({ error: 'Titel erforderlich' }, { status: 400 });
+
+  const isAdmin = session.user.role === 'ADMIN';
+
+  const task = await prisma.task.create({
+    data: {
+      title: title.trim(),
+      description: description?.trim() || null,
+      dueDate: dueDate ? new Date(dueDate) : null,
+      assignedToId: isAdmin && assignedToId ? assignedToId : session.user.id,
+      leadId: leadId || null,
+      opportunityId: opportunityId || null,
+    },
+    include: {
+      lead: { select: { id: true, firstName: true, lastName: true } },
+      opportunity: { select: { id: true, title: true, lead: { select: { id: true, firstName: true, lastName: true } } } },
+      assignedTo: { select: { id: true, name: true } },
+    },
+  });
+  return NextResponse.json(task, { status: 201 });
+}

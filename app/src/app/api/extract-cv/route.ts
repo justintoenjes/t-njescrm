@@ -142,6 +142,62 @@ function toTitleCase(name: string): string {
     .join(' ');
 }
 
+function splitName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 0) return { firstName: '', lastName: '' };
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  // "Nachname, Vorname" format
+  if (parts[0].endsWith(',')) {
+    return { firstName: parts.slice(1).join(' '), lastName: parts[0].replace(/,$/, '') };
+  }
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
+
+function extractTitle(text: string): string | null {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Look for "Betreff:", "Bewerbung als ...", "Bewerbung um ..." patterns
+  for (const line of lines.slice(0, 30)) {
+    const betreffMatch = line.match(/^(?:betreff|subject|re|aw)\s*[:]\s*(.+)/i);
+    if (betreffMatch) return betreffMatch[1].trim();
+
+    const bewerbungMatch = line.match(/^bewerbung\s+(?:als|um|auf|für)\s+(.+)/i);
+    if (bewerbungMatch) return bewerbungMatch[0].trim();
+
+    // "Anschreiben: Position XY" or "Stelle: ..."
+    const stelleMatch = line.match(/^(?:stelle|position|anschreiben)\s*[:]\s*(.+)/i);
+    if (stelleMatch) return stelleMatch[1].trim();
+  }
+
+  // Look for a line starting with "Bewerbung" anywhere in first 15 lines
+  for (const line of lines.slice(0, 15)) {
+    if (/^bewerbung\b/i.test(line) && line.length > 10 && line.length < 120) {
+      return line;
+    }
+  }
+
+  return null;
+}
+
+function extractEmlSubject(emlText: string): string | null {
+  const match = emlText.match(/^Subject:\s*(.+)$/mi);
+  if (!match) return null;
+  let subject = match[1].trim();
+  // Decode MIME encoded words (=?UTF-8?Q?...?= or =?UTF-8?B?...?=)
+  subject = subject.replace(/=\?([^?]+)\?([BQ])\?([^?]*)\?=/gi, (_, charset, encoding, encoded) => {
+    try {
+      if (encoding.toUpperCase() === 'B') {
+        return Buffer.from(encoded, 'base64').toString(charset.toLowerCase());
+      }
+      // Q-encoding
+      return encoded.replace(/=([0-9A-Fa-f]{2})/g, (_: string, hex: string) =>
+        String.fromCharCode(parseInt(hex, 16))
+      ).replace(/_/g, ' ');
+    } catch { return encoded; }
+  });
+  return subject || null;
+}
+
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -165,13 +221,15 @@ export async function POST(request: NextRequest) {
     if (isPdf) {
       const data = await pdf(buffer);
       const text: string = data.text;
-      const debugLines = text.split('\n').map((l: string) => l.trim()).filter(Boolean).slice(0, 30);
       const rawName = extractName(text);
+      const nameParts = rawName ? splitName(toTitleCase(rawName)) : { firstName: null, lastName: null };
 
       return NextResponse.json({
-        name: rawName ? toTitleCase(rawName) : null,
+        firstName: nameParts.firstName || null,
+        lastName: nameParts.lastName || null,
         email: extractEmail(text),
         phone: extractPhone(text),
+        title: extractTitle(text),
       });
     }
 
@@ -196,11 +254,15 @@ export async function POST(request: NextRequest) {
 
     // Also try to find phone in email body
     const emlPhone = extractPhone(emlText);
+    const nameParts = emlName ? splitName(toTitleCase(emlName)) : { firstName: null, lastName: null };
+    const emlSubject = extractEmlSubject(emlText);
 
     return NextResponse.json({
-      name: emlName ? toTitleCase(emlName) : null,
+      firstName: nameParts.firstName || null,
+      lastName: nameParts.lastName || null,
       email: emlEmail,
       phone: emlPhone,
+      title: emlSubject,
     });
   } catch {
     return NextResponse.json({ error: 'Datei konnte nicht gelesen werden' }, { status: 422 });

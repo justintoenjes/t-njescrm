@@ -6,6 +6,7 @@ import { TEMP_COLORS } from '@/lib/temperature';
 import { PHASE_LABELS, PHASE_COLORS } from '@/lib/phase';
 import ScoreBreakdownPopover from '@/components/ScoreBreakdown';
 import OpportunityModal from '@/components/OpportunityModal';
+import TaskModal from '@/components/TaskModal';
 import type { LeadFull, UserOption } from './types';
 import { useLeadDetail } from './useLeadDetail';
 import AboutSection from './AboutSection';
@@ -35,6 +36,7 @@ export default function LeadDetailModal({ lead, users, isAdmin, onClose, onUpdat
   const [aboutOpen, setAboutOpen] = useState(true);
   const [oppsOpen, setOppsOpen] = useState(true);
   const [tasksOpen, setTasksOpen] = useState(true);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 
   // Mobile tab
   const [mobileTab, setMobileTab] = useState<MobileTab>('timeline');
@@ -147,6 +149,7 @@ export default function LeadDetailModal({ lead, users, isAdmin, onClose, onUpdat
                 state={state}
                 collapsed={!tasksOpen}
                 onToggle={() => setTasksOpen(!tasksOpen)}
+                onOpenTask={setOpenTaskId}
               />
             </div>
 
@@ -190,6 +193,7 @@ export default function LeadDetailModal({ lead, users, isAdmin, onClose, onUpdat
                   state={state}
                   collapsed={false}
                   onToggle={() => {}}
+                  onOpenTask={setOpenTaskId}
                 />
               </div>
             )}
@@ -210,6 +214,17 @@ export default function LeadDetailModal({ lead, users, isAdmin, onClose, onUpdat
           siblingOpportunities={opportunities.map(o => ({ id: o.id, title: o.title }))}
           onOpenCompany={onOpenCompany ? (id) => { onClose(); onOpenCompany(id); } : undefined}
           onOpenTemplate={onOpenTemplate ? (id) => { onClose(); onOpenTemplate(id); } : undefined}
+        />
+      )}
+
+      {openTaskId && (
+        <TaskModal
+          taskId={openTaskId}
+          users={users}
+          isAdmin={isAdmin}
+          onClose={() => { setOpenTaskId(null); state.loadTasks(); }}
+          onSaved={() => state.loadTasks()}
+          onDeleted={() => state.loadTasks()}
         />
       )}
     </>

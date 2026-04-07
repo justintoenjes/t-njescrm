@@ -149,6 +149,13 @@ export default function Header() {
                   <Kanban size={14} className="text-gray-400" />
                   {category === 'RECRUITING' ? 'Neue Bewerbung' : 'Neue Anfrage'}
                 </button>
+                <button
+                  onClick={() => { setCreateOpen(false); router.push('/tasks?create=true'); }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
+                >
+                  <CheckSquare size={14} className="text-gray-400" />
+                  Neue Aufgabe
+                </button>
               </div>
             )}
           </div>

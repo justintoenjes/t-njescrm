@@ -7,9 +7,10 @@ type Props = {
   state: UseLeadDetailReturn;
   collapsed: boolean;
   onToggle: () => void;
+  onOpenTask?: (taskId: string) => void;
 };
 
-export default function TasksSection({ state, collapsed, onToggle }: Props) {
+export default function TasksSection({ state, collapsed, onToggle, onOpenTask }: Props) {
   const {
     tasks, tasksLoaded, newTaskTitle, setNewTaskTitle, newTaskDue, setNewTaskDue,
     addingTask, addTask, toggleTask, deleteTask, showCompleted, setShowCompleted,
@@ -59,9 +60,10 @@ export default function TasksSection({ state, collapsed, onToggle }: Props) {
             {openTasks.map(task => {
               const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
               return (
-                <div key={task.id} className={`flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 ${isOverdue ? 'bg-red-50/50' : ''}`}>
+                <div key={task.id} className={`flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 cursor-pointer ${isOverdue ? 'bg-red-50/50' : ''}`}
+                  onClick={() => onOpenTask?.(task.id)}>
                   <button
-                    onClick={() => toggleTask(task.id, true)}
+                    onClick={(e) => { e.stopPropagation(); toggleTask(task.id, true); }}
                     className="shrink-0 w-4 h-4 rounded border border-gray-300 hover:border-tc-blue flex items-center justify-center transition"
                   />
                   <div className="flex-1 min-w-0">
@@ -76,7 +78,7 @@ export default function TasksSection({ state, collapsed, onToggle }: Props) {
                       {new Date(task.dueDate).toLocaleDateString('de-DE')}
                     </span>
                   )}
-                  <button onClick={() => deleteTask(task.id)} className="text-gray-300 hover:text-red-500 transition">
+                  <button onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} className="text-gray-300 hover:text-red-500 transition">
                     <Trash size={13} />
                   </button>
                 </div>
@@ -96,9 +98,10 @@ export default function TasksSection({ state, collapsed, onToggle }: Props) {
               {showCompleted && (
                 <div className="space-y-1 mt-2">
                   {completedTasks.map(task => (
-                    <div key={task.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 opacity-60">
+                    <div key={task.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 opacity-60 cursor-pointer"
+                      onClick={() => onOpenTask?.(task.id)}>
                       <button
-                        onClick={() => toggleTask(task.id, false)}
+                        onClick={(e) => { e.stopPropagation(); toggleTask(task.id, false); }}
                         className="shrink-0 w-4 h-4 rounded border bg-green-500 border-green-500 text-white flex items-center justify-center transition"
                       >
                         <CheckSquare size={10} />
@@ -109,7 +112,7 @@ export default function TasksSection({ state, collapsed, onToggle }: Props) {
                           <span className="text-[11px] text-gray-300">{task.assignedTo.name}</span>
                         )}
                       </div>
-                      <button onClick={() => deleteTask(task.id)} className="text-gray-300 hover:text-red-500 transition">
+                      <button onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} className="text-gray-300 hover:text-red-500 transition">
                         <Trash size={13} />
                       </button>
                     </div>

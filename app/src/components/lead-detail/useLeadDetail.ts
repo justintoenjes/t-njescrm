@@ -490,7 +490,7 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
     templates, handleOppUpdate, handleOppDelete,
     // Tasks
     tasks, tasksLoaded, newTaskTitle, setNewTaskTitle, newTaskDue, setNewTaskDue,
-    addingTask, addTask, toggleTask, deleteTask, showCompleted, setShowCompleted,
+    addingTask, addTask, toggleTask, deleteTask, showCompleted, setShowCompleted, loadTasks,
     // Emails
     emails, emailsLoaded, emailsError, emailsSyncing,
     // Computed

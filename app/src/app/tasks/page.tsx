@@ -8,6 +8,7 @@ import Header from '@/components/Header';
 import LeadModal, { LeadFull } from '@/components/LeadModal';
 import OpportunityModal from '@/components/OpportunityModal';
 import type { OpportunityFull } from '@/components/OpportunityModal';
+import TaskModal from '@/components/TaskModal';
 import { useCategory } from '@/lib/category-context';
 
 interface Task {
@@ -43,19 +44,21 @@ function groupTasks(tasks: Task[]) {
   return { overdue, today, upcoming, noDate, completed };
 }
 
-function TaskRow({ task, onToggle, onOpenLead, onOpenOpp }: {
+function TaskRow({ task, onToggle, onOpenLead, onOpenOpp, onOpenTask }: {
   task: Task;
   onToggle: (id: string, val: boolean) => void;
   onOpenLead: (id: string) => void;
   onOpenOpp: (id: string) => void;
+  onOpenTask: (id: string) => void;
 }) {
   const due = task.dueDate ? new Date(task.dueDate) : null;
   const isOverdue = due && due < new Date() && !task.isCompleted;
 
   return (
-    <div className="flex items-start gap-3 py-2.5 px-3 hover:bg-gray-50 rounded-lg group">
+    <div className="flex items-start gap-3 py-2.5 px-3 hover:bg-gray-50 rounded-lg group cursor-pointer"
+      onClick={() => onOpenTask(task.id)}>
       <button
-        onClick={() => onToggle(task.id, !task.isCompleted)}
+        onClick={(e) => { e.stopPropagation(); onToggle(task.id, !task.isCompleted); }}
         className="mt-0.5 text-gray-300 hover:text-green-500 transition-colors"
       >
         {task.isCompleted
@@ -68,12 +71,12 @@ function TaskRow({ task, onToggle, onOpenLead, onOpenOpp }: {
         </p>
         <div className="flex items-center gap-3 mt-0.5">
           {task.opportunity ? (
-            <button onClick={() => onOpenOpp(task.opportunity!.id)}
+            <button onClick={(e) => { e.stopPropagation(); onOpenOpp(task.opportunity!.id); }}
               className="text-xs text-tc-blue hover:text-tc-dark hover:underline transition">
               {task.opportunity.title} ({`${task.opportunity.lead.firstName} ${task.opportunity.lead.lastName}`.trim()})
             </button>
           ) : task.lead ? (
-            <button onClick={() => onOpenLead(task.lead!.id)}
+            <button onClick={(e) => { e.stopPropagation(); onOpenLead(task.lead!.id); }}
               className="text-xs text-tc-blue hover:text-tc-dark hover:underline transition">
               {`${task.lead.firstName} ${task.lead.lastName}`.trim()}{task.lead.companyRef?.name ? ` · ${task.lead.companyRef.name}` : ''}
             </button>
@@ -95,11 +98,12 @@ function TaskRow({ task, onToggle, onOpenLead, onOpenOpp }: {
   );
 }
 
-function Section({ title, tasks, icon, onToggle, onOpenLead, onOpenOpp, collapsible }: {
+function Section({ title, tasks, icon, onToggle, onOpenLead, onOpenOpp, onOpenTask, collapsible }: {
   title: string; tasks: Task[]; icon: React.ReactNode;
   onToggle: (id: string, v: boolean) => void;
   onOpenLead: (id: string) => void;
   onOpenOpp: (id: string) => void;
+  onOpenTask: (id: string) => void;
   collapsible?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(collapsible ?? false);
@@ -117,7 +121,7 @@ function Section({ title, tasks, icon, onToggle, onOpenLead, onOpenOpp, collapsi
       </button>
       {!collapsed && (
         <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-          {tasks.map(t => <TaskRow key={t.id} task={t} onToggle={onToggle} onOpenLead={onOpenLead} onOpenOpp={onOpenOpp} />)}
+          {tasks.map(t => <TaskRow key={t.id} task={t} onToggle={onToggle} onOpenLead={onOpenLead} onOpenOpp={onOpenOpp} onOpenTask={onOpenTask} />)}
         </div>
       )}
     </div>
@@ -133,6 +137,8 @@ export default function TasksPage() {
   const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([]);
   const [selectedLead, setSelectedLead] = useState<LeadFull | null>(null);
   const [openOppId, setOpenOppId] = useState<string | null>(null);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [showCreateTask, setShowCreateTask] = useState(false);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -150,10 +156,16 @@ export default function TasksPage() {
   }, [status, router, load, isAdmin]);
 
   useEffect(() => {
+    if (status !== 'authenticated') return;
     const params = new URLSearchParams(window.location.search);
     const openLeadId = params.get('openLead');
-    if (openLeadId && status === 'authenticated') {
+    const create = params.get('create');
+    if (openLeadId) {
       openLead(openLeadId);
+      window.history.replaceState(null, '', '/tasks');
+    }
+    if (create === 'true') {
+      setShowCreateTask(true);
       window.history.replaceState(null, '', '/tasks');
     }
   }, [status]);
@@ -183,7 +195,7 @@ export default function TasksPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold text-gray-900">Aufgaben</h1>
           <button
-            onClick={() => router.push('/tasks?create=true')}
+            onClick={() => setShowCreateTask(true)}
             className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
           >
             <Plus size={15} /> Aufgabe anlegen
@@ -191,15 +203,15 @@ export default function TasksPage() {
         </div>
 
         <Section title="Überfällig" tasks={groups.overdue} icon={<AlertCircle size={15} className="text-red-500" />}
-          onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} />
+          onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} onOpenTask={setOpenTaskId} />
         <Section title="Heute" tasks={groups.today} icon={<Clock size={15} className="text-amber-500" />}
-          onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} />
+          onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} onOpenTask={setOpenTaskId} />
         <Section title="Demnächst" tasks={groups.upcoming} icon={<Calendar size={15} className="text-tc-blue" />}
-          onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} />
+          onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} onOpenTask={setOpenTaskId} />
         <Section title="Kein Fälligkeitsdatum" tasks={groups.noDate} icon={<Circle size={15} className="text-gray-400" />}
-          onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} />
+          onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} onOpenTask={setOpenTaskId} />
         <Section title="Abgeschlossen" tasks={groups.completed} icon={<CheckCircle2 size={15} className="text-green-500" />}
-          onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} collapsible />
+          onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} onOpenTask={setOpenTaskId} collapsible />
 
         {tasks.length === 0 && (
           <div className="text-center text-gray-400 py-16">
@@ -229,6 +241,19 @@ export default function TasksPage() {
           onUpdate={() => {}}
           onDelete={() => { setOpenOppId(null); load(); }}
           onOpenLead={(id) => { setOpenOppId(null); openLead(id); }}
+        />
+      )}
+
+      {(openTaskId || showCreateTask) && (
+        <TaskModal
+          taskId={openTaskId}
+          users={users}
+          isAdmin={isAdmin}
+          onClose={() => { setOpenTaskId(null); setShowCreateTask(false); load(); }}
+          onSaved={() => load()}
+          onDeleted={() => load()}
+          onOpenLead={(id) => { setOpenTaskId(null); openLead(id); }}
+          onOpenOpportunity={(id) => { setOpenTaskId(null); setOpenOppId(id); }}
         />
       )}
     </div>

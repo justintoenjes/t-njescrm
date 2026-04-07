@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Save, Trash2, Users, Briefcase, Package, Lock, AlertTriangle, Plus } from 'lucide-react';
+import { X, Save, Trash2, Users, Briefcase, Package, Lock, AlertTriangle, Plus, FileText, Mail } from 'lucide-react';
 import { TEMP_COLORS, Temperature } from '@/lib/temperature';
 import { PHASE_LABELS, PHASE_COLORS, LeadPhase } from '@/lib/phase';
 import { OPP_STAGE_LABELS, OPP_STAGE_COLORS, TERMINAL_STAGES } from '@/lib/opportunity';
@@ -81,6 +81,29 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
   const [showNewCandidate, setShowNewCandidate] = useState(false);
   const [newCandidate, setNewCandidate] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [creatingCandidate, setCreatingCandidate] = useState(false);
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
+
+  async function handleFileUpload(file: File) {
+    setCvFile(file);
+    setExtracting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/extract-cv', { method: 'POST', body: formData });
+      if (!res.ok) return;
+      const data = await res.json();
+      setNewCandidate(prev => ({
+        ...prev,
+        firstName: prev.firstName || data.firstName || '',
+        lastName: prev.lastName || data.lastName || '',
+        email: prev.email || data.email || '',
+        phone: prev.phone || data.phone || '',
+      }));
+    } finally {
+      setExtracting(false);
+    }
+  }
 
   async function createCandidate() {
     if (!newCandidate.firstName.trim()) return;
@@ -101,7 +124,7 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
       if (!leadRes.ok) return;
       const lead = await leadRes.json();
       // Create opportunity linked to this template
-      await fetch('/api/opportunities', {
+      const oppRes = await fetch('/api/opportunities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -111,7 +134,17 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
           stage: 'SCREENING',
         }),
       });
+      // Upload file as attachment
+      if (cvFile && oppRes.ok) {
+        const opp = await oppRes.json();
+        const fd = new FormData();
+        fd.append('file', cvFile);
+        fd.append('opportunityId', opp.id);
+        fd.append('leadId', lead.id);
+        await fetch('/api/attachments', { method: 'POST', body: fd });
+      }
       setNewCandidate({ firstName: '', lastName: '', email: '', phone: '' });
+      setCvFile(null);
       setShowNewCandidate(false);
       fetchTemplate();
       onUpdate?.();
@@ -422,6 +455,24 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
                     </div>
                     {showNewCandidate && (
                       <div className="bg-gray-50 rounded-xl p-3 mb-2 space-y-2">
+                        {/* File Upload */}
+                        <div className="relative border-2 border-dashed border-gray-200 rounded-lg p-2 text-center hover:border-tc-blue/50 transition">
+                          {cvFile ? (
+                            <div className="flex items-center justify-center gap-2 text-xs">
+                              {cvFile.name.endsWith('.eml') ? <Mail size={14} className="text-tc-blue" /> : <FileText size={14} className="text-red-400" />}
+                              <span className="text-gray-700 truncate max-w-[160px]">{cvFile.name}</span>
+                              {extracting && <span className="text-tc-blue animate-pulse">Lese aus…</span>}
+                              <button onClick={() => setCvFile(null)} className="text-gray-400 hover:text-red-500 ml-1">✕</button>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-400">Anschreiben/CV/E-Mail hochladen (optional)</p>
+                          )}
+                          {!cvFile && (
+                            <input type="file" accept="application/pdf,.eml,message/rfc822"
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
+                          )}
+                        </div>
                         <div className="grid grid-cols-2 gap-2">
                           <input value={newCandidate.firstName} onChange={e => setNewCandidate({ ...newCandidate, firstName: e.target.value })}
                             placeholder="Vorname *" autoFocus
@@ -443,7 +494,7 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
                             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
                         </div>
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => { setShowNewCandidate(false); setNewCandidate({ firstName: '', lastName: '', email: '', phone: '' }); }}
+                          <button onClick={() => { setShowNewCandidate(false); setNewCandidate({ firstName: '', lastName: '', email: '', phone: '' }); setCvFile(null); }}
                             className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5">Abbrechen</button>
                           <button onClick={createCandidate} disabled={creatingCandidate || !newCandidate.firstName.trim()}
                             className="flex items-center gap-1 text-xs bg-tc-dark hover:bg-tc-dark/90 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50">
