@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { X, Send, Trash2, Save, Brain, Plus, Trash, CheckSquare, ArrowLeft, AlertCircle, ChevronDown, ChevronRight, Briefcase } from 'lucide-react';
+import { X, Send, Trash2, Save, Brain, Plus, Trash, CheckSquare, ArrowLeft, AlertCircle, ChevronDown, ChevronRight, Briefcase, Sparkles } from 'lucide-react';
 import { TEMP_COLORS, Temperature } from '@/lib/temperature';
 import { OPP_STAGE_LABELS, OPP_STAGE_ORDER, OPP_STAGE_COLORS, OpportunityStage, getStageOrder } from '@/lib/opportunity';
 import type { OppScoreBreakdown } from '@/lib/opp-score';
@@ -759,8 +759,8 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                     className="flex-1 border border-tc-blue/30 rounded-lg px-3 py-1.5 text-sm bg-tc-blue/5 focus:outline-none focus:ring-2 focus:ring-tc-blue placeholder:text-gray-400"
                   />
                   <button onClick={fetchFollowUp}
-                    className="shrink-0 bg-tc-dark hover:bg-tc-dark/90 text-white text-xs px-3 py-1.5 rounded-lg transition">
-                    <Send size={12} />
+                    className="shrink-0 flex items-center gap-1.5 bg-tc-blue/10 hover:bg-tc-blue/20 text-tc-dark border border-tc-blue/30 text-xs px-3 py-1.5 rounded-lg transition">
+                    <Sparkles size={12} /> Generieren
                   </button>
                   <button onClick={() => { setShowFollowUpHint(false); setFollowUpHint(''); }}
                     className="shrink-0 text-gray-400 hover:text-gray-600 text-xs px-2 py-1.5">
