@@ -117,8 +117,11 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Find or create user in our DB, sync role from Azure groups
-        const email = (profile?.email ?? token.email) as string;
-        if (!email) { console.error('[Azure Auth] No email in profile or token'); return token; }
+        // Azure AD may return email in different fields depending on tenant config
+        const azureProfile = profile as any;
+        const email = (azureProfile?.email ?? azureProfile?.preferred_username ?? azureProfile?.upn ?? token.email) as string;
+        console.log('[Azure Auth] Profile fields:', { email: azureProfile?.email, preferred_username: azureProfile?.preferred_username, upn: azureProfile?.upn, tokenEmail: token.email });
+        if (!email) { console.error('[Azure Auth] No email found in any field'); return token; }
         let dbUser = await prisma.user.findUnique({ where: { email } });
         if (!dbUser) {
           dbUser = await prisma.user.create({
