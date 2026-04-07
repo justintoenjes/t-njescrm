@@ -17,7 +17,7 @@ import CompanyDetailModal from '@/components/CompanyDetailModal';
 import TemplateDetailModal from '@/components/TemplateDetailModal';
 import { OPP_STAGE_LABELS, OPP_STAGE_ORDER, OPP_STAGE_COLORS, OpportunityStage, getStageOrder } from '@/lib/opportunity';
 import { TEMP_LABELS, TEMP_COLORS, Temperature } from '@/lib/temperature';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Plus, X } from 'lucide-react';
 import { useCategory } from '@/lib/category-context';
 
 interface OppCard {
@@ -118,6 +118,47 @@ export default function PipelinePage() {
   const [selectedLead, setSelectedLead] = useState<LeadFull | null>(null);
   const [openCompanyId, setOpenCompanyId] = useState<string | null>(null);
   const [openTemplateId, setOpenTemplateId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newOpp, setNewOpp] = useState({ title: '', value: '', leadSearch: '', leadId: '' });
+  const [leadResults, setLeadResults] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
+  const [creatingOpp, setCreatingOpp] = useState(false);
+
+  useEffect(() => {
+    if (!newOpp.leadSearch || newOpp.leadSearch.length < 2) { setLeadResults([]); return; }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/leads?search=${encodeURIComponent(newOpp.leadSearch)}&category=${category}`);
+      if (res.ok) {
+        const data = await res.json();
+        setLeadResults(data.map((l: any) => ({ id: l.id, firstName: l.firstName, lastName: l.lastName })));
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [newOpp.leadSearch, category]);
+
+  async function createOpp() {
+    if (!newOpp.title.trim() || !newOpp.leadId) return;
+    setCreatingOpp(true);
+    try {
+      const stage = category === 'RECRUITING' ? 'SCREENING' : 'PROPOSAL';
+      const res = await fetch('/api/opportunities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newOpp.title.trim(),
+          leadId: newOpp.leadId,
+          value: newOpp.value ? parseFloat(newOpp.value) : null,
+          stage,
+        }),
+      });
+      if (res.ok) {
+        setNewOpp({ title: '', value: '', leadSearch: '', leadId: '' });
+        setShowCreate(false);
+        load();
+      }
+    } finally {
+      setCreatingOpp(false);
+    }
+  }
 
   async function openLead(leadId: string) {
     const res = await fetch(`/api/leads/${leadId}`);
@@ -176,13 +217,20 @@ export default function PipelinePage() {
     if (!over) return;
     const opp = opps.find(o => o.id === active.id);
     if (!opp) return;
+
+    // For stages with email intercepts (REJECTED, INTERVIEW), open the modal instead of saving directly
+    const interceptStages: OpportunityStage[] = ['REJECTED', 'INTERVIEW'];
+    if (interceptStages.includes(opp.stage) && category === 'RECRUITING') {
+      setOpenOppId(opp.id);
+      return;
+    }
+
     const res = await fetch(`/api/opportunities/${opp.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage: opp.stage }),
     });
     if (!res.ok) {
-      // Rollback: reload from server
       load();
     }
   }
@@ -205,7 +253,73 @@ export default function PipelinePage() {
     <div className="min-h-screen bg-gray-100">
       <Header />
       <main className="max-w-7xl mx-auto px-4 py-6">
-        <h1 className="text-xl font-bold text-gray-900 mb-6">Pipeline</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-bold text-gray-900">Pipeline</h1>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+          >
+            <Plus size={15} /> {category === 'RECRUITING' ? 'Bewerbung anlegen' : 'Anfrage anlegen'}
+          </button>
+        </div>
+
+        {/* Create Opportunity Form */}
+        {showCreate && (
+          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-700">{category === 'RECRUITING' ? 'Neue Bewerbung' : 'Neue Anfrage'}</h2>
+              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="relative">
+                <label className="text-xs text-gray-500 font-medium">Kontakt *</label>
+                {newOpp.leadId ? (
+                  <div className="flex items-center gap-2 mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
+                    <span className="flex-1">{leadResults.find(l => l.id === newOpp.leadId)?.firstName} {leadResults.find(l => l.id === newOpp.leadId)?.lastName}</span>
+                    <button onClick={() => setNewOpp({ ...newOpp, leadId: '', leadSearch: '' })} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      value={newOpp.leadSearch}
+                      onChange={e => setNewOpp({ ...newOpp, leadSearch: e.target.value })}
+                      placeholder="Kontakt suchen…"
+                      autoFocus
+                      className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+                    />
+                    {leadResults.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
+                        {leadResults.map(l => (
+                          <button key={l.id} onClick={() => setNewOpp({ ...newOpp, leadId: l.id, leadSearch: '' })}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">{`${l.firstName} ${l.lastName}`.trim()}</button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 font-medium">Titel *</label>
+                <input value={newOpp.title} onChange={e => setNewOpp({ ...newOpp, title: e.target.value })}
+                  placeholder={category === 'RECRUITING' ? 'Bewerbungstitel' : 'Anfragetitel'}
+                  onKeyDown={e => { if (e.key === 'Enter') createOpp(); }}
+                  className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+              </div>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-500 font-medium">Wert (€)</label>
+                  <input type="number" value={newOpp.value} onChange={e => setNewOpp({ ...newOpp, value: e.target.value })} placeholder="optional"
+                    onKeyDown={e => { if (e.key === 'Enter') createOpp(); }}
+                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                </div>
+                <button onClick={createOpp} disabled={creatingOpp || !newOpp.title.trim() || !newOpp.leadId}
+                  className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50 whitespace-nowrap">
+                  {creatingOpp ? 'Erstelle…' : 'Anlegen'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}

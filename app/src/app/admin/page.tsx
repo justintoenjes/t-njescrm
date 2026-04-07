@@ -118,7 +118,7 @@ export default function AdminPage() {
   }
 
   async function createUser() {
-    if (!newUser.name || !newUser.email || !newUser.password) return;
+    if (!newUser.name || !newUser.email) return;
     setCreatingUser(true);
     const res = await fetch('/api/users', {
       method: 'POST',
@@ -151,6 +151,25 @@ export default function AdminPage() {
       setUserMsg('Passwort zurückgesetzt');
       setResetUserId(null);
       setResetPassword('');
+    } else {
+      const e = await res.json();
+      setUserMsg(e.error ?? 'Fehler');
+    }
+    setTimeout(() => setUserMsg(''), 2500);
+  }
+
+  async function deleteUserPassword(userId: string) {
+    if (!confirm('Passwort wirklich löschen? Der Benutzer kann sich dann nur noch per SSO anmelden.')) return;
+    setResetting(true);
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: null }),
+    });
+    setResetting(false);
+    if (res.ok) {
+      setUserMsg('Passwort gelöscht');
+      setResetUserId(null);
     } else {
       const e = await res.json();
       setUserMsg(e.error ?? 'Fehler');
@@ -395,6 +414,10 @@ export default function AdminPage() {
                           className="bg-tc-dark hover:bg-tc-dark/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition disabled:opacity-50">
                           {resetting ? 'Setze…' : 'Setzen'}
                         </button>
+                        <button onClick={() => deleteUserPassword(u.id)} disabled={resetting}
+                          className="text-red-500 hover:text-red-700 text-xs font-medium px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition disabled:opacity-50">
+                          Passwort löschen
+                        </button>
                       </div>
                     )}
                   </div>
@@ -408,7 +431,7 @@ export default function AdminPage() {
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
                   <input placeholder="E-Mail *" type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
-                  <input placeholder="Passwort *" type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                  <input placeholder="Passwort (optional bei SSO)" type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
                   <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue">
@@ -417,7 +440,7 @@ export default function AdminPage() {
                   </select>
                 </div>
                 <div className="flex items-center gap-3">
-                  <button onClick={createUser} disabled={creatingUser || !newUser.name || !newUser.email || !newUser.password}
+                  <button onClick={createUser} disabled={creatingUser || !newUser.name || !newUser.email}
                     className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
                     <UserPlus size={14} /> {creatingUser ? 'Erstellen…' : 'Erstellen'}
                   </button>

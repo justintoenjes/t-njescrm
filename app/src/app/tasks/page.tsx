@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Circle, AlertCircle, Clock, Calendar, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle2, Circle, AlertCircle, Clock, Calendar, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import Header from '@/components/Header';
 import LeadModal, { LeadFull } from '@/components/LeadModal';
 import OpportunityModal from '@/components/OpportunityModal';
@@ -180,7 +180,15 @@ export default function TasksPage() {
     <div className="min-h-screen bg-gray-100">
       <Header />
       <main className="max-w-3xl mx-auto p-6">
-        <h1 className="text-xl font-bold text-gray-900 mb-6">Aufgaben</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-bold text-gray-900">Aufgaben</h1>
+          <button
+            onClick={() => router.push('/tasks?create=true')}
+            className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+          >
+            <Plus size={15} /> Aufgabe anlegen
+          </button>
+        </div>
 
         <Section title="Überfällig" tasks={groups.overdue} icon={<AlertCircle size={15} className="text-red-500" />}
           onToggle={toggle} onOpenLead={openLead} onOpenOpp={setOpenOppId} />

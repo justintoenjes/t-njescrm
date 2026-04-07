@@ -17,6 +17,12 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
   const { password } = body;
 
+  // password === null → delete password (SSO only)
+  if (password === null) {
+    await prisma.user.update({ where: { id }, data: { password: '' } });
+    return NextResponse.json({ ok: true });
+  }
+
   if (!password || password.length < 6) {
     return NextResponse.json({ error: 'Passwort muss mindestens 6 Zeichen haben' }, { status: 400 });
   }

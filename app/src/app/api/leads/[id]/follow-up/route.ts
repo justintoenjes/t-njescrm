@@ -26,7 +26,7 @@ export async function POST(_: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: 'OPENAI_API_KEY nicht konfiguriert' }, { status: 500 });
   }
 
-  const [lead, defaultFormal, subjectConfig] = await Promise.all([
+  const [lead, defaultFormal] = await Promise.all([
     prisma.lead.findUnique({
       where: { id },
       include: {
@@ -43,7 +43,6 @@ export async function POST(_: NextRequest, { params }: Ctx) {
       },
     }),
     prisma.globalConfig.findUnique({ where: { key: 'default_formal_address' } }),
-    prisma.globalConfig.findUnique({ where: { key: 'followup_subject_template' } }),
   ]);
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -141,18 +140,6 @@ WICHTIG: Generiere KEINE Grußformel (kein "Mit freundlichen Grüßen", "Beste G
     let parsed;
     try { parsed = JSON.parse(text); }
     catch { console.error('Follow-Up JSON parse error, raw:', text); return NextResponse.json({ error: 'KI-Antwort war kein gültiges JSON' }, { status: 502 }); }
-
-    // Apply subject template if configured
-    if (subjectConfig?.value) {
-      const firma = lead.companyRef?.name || '';
-      const oppTitle = lead.opportunities[0]?.title ?? '';
-      parsed.subject = subjectConfig.value
-        .replace(/\{\{NAME\}\}/g, fullName)
-        .replace(/\{\{VORNAME\}\}/g, lead.firstName)
-        .replace(/\{\{NACHNAME\}\}/g, lead.lastName)
-        .replace(/\{\{JOBTITEL\}\}/g, oppTitle)
-        .replace(/\{\{FIRMA\}\}/g, firma);
-    }
 
     // Persist as AI-generated note
     const noteContent = `📧 **KI Follow-Up**\n**Betreff:** ${parsed.subject}\n\n${parsed.body}`;

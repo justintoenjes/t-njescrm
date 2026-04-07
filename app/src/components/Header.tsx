@@ -38,7 +38,7 @@ export default function Header() {
 
   return (
     <header className="bg-tc-dark sticky top-0 z-30 pt-[env(safe-area-inset-top)] max-w-[100vw]">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 flex items-center h-14 gap-2 sm:gap-4 overflow-x-auto scrollbar-hide">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 flex items-center h-14 gap-2 sm:gap-4">
         {/* Logo */}
         <Link href="/" className="shrink-0">
           <img src="/logo-crm.svg" alt="Tönjes CRM" className="h-9 sm:h-10 w-auto" />
@@ -112,30 +112,17 @@ export default function Header() {
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Right section: Admin + Create + Search + User + Logout */}
+        {/* Right section: Create + Search + User + Admin + Logout */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {session?.user.role === 'ADMIN' && (
-            <Link
-              href="/admin"
-              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap
-                ${pathname.startsWith('/admin')
-                  ? 'bg-tc-blue/20 text-tc-blue'
-                  : 'text-white/60 hover:bg-white/10 hover:text-white/90'
-                }`}
-            >
-              <Shield size={15} />
-              <span className="hidden md:inline">Admin</span>
-            </Link>
-          )}
-
           {/* Create Dropdown */}
           <div ref={createRef} className="relative">
             <button
               onClick={() => setCreateOpen(!createOpen)}
-              className="flex items-center p-1.5 rounded-md text-white/50 hover:bg-white/10 hover:text-white/90 transition-colors"
+              className="flex items-center gap-1 px-2 py-1.5 rounded-md text-white/50 hover:bg-white/10 hover:text-white/90 transition-colors text-sm"
               title="Neu anlegen"
             >
-              <Plus size={16} />
+              <Plus size={15} />
+              <span className="hidden sm:inline font-medium">Neu</span>
             </button>
             {createOpen && (
               <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-200 py-1.5 min-w-[200px] z-[100]">
@@ -188,9 +175,22 @@ export default function Header() {
             <User size={15} />
             <span className="hidden sm:block">{session?.user.name}</span>
           </Link>
+          {session?.user.role === 'ADMIN' && (
+            <Link
+              href="/admin"
+              className={`flex items-center p-1.5 rounded-md transition-colors
+                ${pathname.startsWith('/admin')
+                  ? 'bg-tc-blue/20 text-tc-blue'
+                  : 'text-white/50 hover:bg-white/10 hover:text-white/90'
+                }`}
+              title="Admin"
+            >
+              <Shield size={15} />
+            </Link>
+          )}
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
-            className="flex items-center gap-1 text-sm text-white/50 hover:text-red-400 transition-colors p-1.5"
+            className="flex items-center text-sm text-white/50 hover:text-red-400 transition-colors p-1.5"
           >
             <LogOut size={15} />
           </button>
