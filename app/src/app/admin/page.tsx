@@ -21,6 +21,8 @@ export default function AdminPage() {
   const [daysWarm, setDaysWarm] = useState('14');
   const [daysCold, setDaysCold] = useState('30');
   const [defaultFormalAddress, setDefaultFormalAddress] = useState(false);
+  const [azureGroupAdmin, setAzureGroupAdmin] = useState('');
+  const [azureGroupUser, setAzureGroupUser] = useState('');
   const [configSaving, setConfigSaving] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
 
@@ -60,6 +62,8 @@ export default function AdminPage() {
       if (config.days_warm !== undefined) setDaysWarm(config.days_warm);
       if (config.days_cold !== undefined) setDaysCold(config.days_cold);
       if (config.default_formal_address !== undefined) setDefaultFormalAddress(config.default_formal_address === 'true');
+      if (config.azure_group_admin !== undefined) setAzureGroupAdmin(config.azure_group_admin);
+      if (config.azure_group_user !== undefined) setAzureGroupUser(config.azure_group_user);
       if (config.email_legal_disclaimer !== undefined) setLegalDisclaimer(config.email_legal_disclaimer);
       if (config.followup_subject_template !== undefined) setFollowupSubject(config.followup_subject_template);
       if (config.screening_template !== undefined) setScreeningTemplate(config.screening_template);
@@ -85,7 +89,10 @@ export default function AdminPage() {
     const res = await fetch('/api/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ days_warm: String(w), days_cold: String(c), default_formal_address: String(defaultFormalAddress) }),
+      body: JSON.stringify({
+        days_warm: String(w), days_cold: String(c), default_formal_address: String(defaultFormalAddress),
+        azure_group_admin: azureGroupAdmin.trim(), azure_group_user: azureGroupUser.trim(),
+      }),
     });
     setConfigSaving(false);
     if (!res.ok) { setConfigError('Speichern fehlgeschlagen'); return; }
@@ -379,6 +386,26 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
+              {/* Azure AD Groups */}
+              <div className="pt-3 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Azure AD Gruppen (SSO)</p>
+                <p className="text-xs text-gray-400 mb-3">Group Object-IDs aus Azure Portal. Wenn leer, darf jeder Azure AD User sich anmelden.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 font-medium">Admin-Gruppe</label>
+                    <input value={azureGroupAdmin} onChange={e => setAzureGroupAdmin(e.target.value)}
+                      placeholder="Group Object-ID"
+                      className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue font-mono text-xs" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 font-medium">Benutzer-Gruppe</label>
+                    <input value={azureGroupUser} onChange={e => setAzureGroupUser(e.target.value)}
+                      placeholder="Group Object-ID"
+                      className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue font-mono text-xs" />
+                  </div>
+                </div>
+              </div>
+
               {!configValid && daysWarm && daysCold && (
                 <p className="text-red-500 text-xs">days_cold muss größer als days_warm sein.</p>
               )}

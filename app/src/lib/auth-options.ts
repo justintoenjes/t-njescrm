@@ -4,9 +4,15 @@ import AzureADProvider from 'next-auth/providers/azure-ad';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
 
-// Azure AD group IDs for role mapping
-const AZURE_GROUP_ADMIN = '2bbb6468-8e13-4ddc-808c-05bdec833c62'; // CRM_Admin
-const AZURE_GROUP_USER = 'db55cc80-7ae4-467a-ac6d-49df5271c0e0';  // CRM_Benutzer
+async function getAzureGroupConfig(): Promise<{ adminGroupId: string; userGroupId: string } | null> {
+  const configs = await prisma.globalConfig.findMany({
+    where: { key: { in: ['azure_group_admin', 'azure_group_user'] } },
+  });
+  const adminGroupId = configs.find(c => c.key === 'azure_group_admin')?.value;
+  const userGroupId = configs.find(c => c.key === 'azure_group_user')?.value;
+  if (!adminGroupId && !userGroupId) return null; // No groups configured → skip group check
+  return { adminGroupId: adminGroupId ?? '', userGroupId: userGroupId ?? '' };
+}
 
 async function getAzureGroupIds(accessToken: string): Promise<string[]> {
   try {
@@ -21,10 +27,10 @@ async function getAzureGroupIds(accessToken: string): Promise<string[]> {
   }
 }
 
-function resolveRoleFromGroups(groupIds: string[]): 'ADMIN' | 'USER' | null {
-  if (groupIds.includes(AZURE_GROUP_ADMIN)) return 'ADMIN';
-  if (groupIds.includes(AZURE_GROUP_USER)) return 'USER';
-  return null; // Not in any CRM group → deny access
+function resolveRoleFromGroups(groupIds: string[], adminGroupId: string, userGroupId: string): 'ADMIN' | 'USER' | null {
+  if (adminGroupId && groupIds.includes(adminGroupId)) return 'ADMIN';
+  if (userGroupId && groupIds.includes(userGroupId)) return 'USER';
+  return null;
 }
 
 export const authOptions: NextAuthOptions = {
@@ -65,12 +71,14 @@ export const authOptions: NextAuthOptions = {
     async signIn({ account }) {
       // For Azure AD: check group membership before allowing sign-in
       if (account?.provider === 'azure-ad' && account.access_token) {
-        const groupIds = await getAzureGroupIds(account.access_token);
-        const role = resolveRoleFromGroups(groupIds);
-        if (!role) {
-          // Not in CRM_Admin or CRM_Benutzer → block login
-          return '/login?error=NoGroupAccess';
+        const groupConfig = await getAzureGroupConfig();
+        if (groupConfig) {
+          // Groups are configured → enforce membership
+          const groupIds = await getAzureGroupIds(account.access_token);
+          const role = resolveRoleFromGroups(groupIds, groupConfig.adminGroupId, groupConfig.userGroupId);
+          if (!role) return '/login?error=NoGroupAccess';
         }
+        // No groups configured → allow all Azure AD users
       }
       return true;
     },
@@ -92,13 +100,13 @@ export const authOptions: NextAuthOptions = {
         token.accessTokenExpires = account.expires_at ? account.expires_at * 1000 : 0;
 
         // Check Azure AD group membership → determine role
-        const groupIds = account.access_token ? await getAzureGroupIds(account.access_token) : [];
-        const role = resolveRoleFromGroups(groupIds);
-
-        if (!role) {
-          // User not in any CRM group → deny access
-          token.error = 'NoGroupAccess';
-          return token;
+        const groupConfig = await getAzureGroupConfig();
+        let role: 'ADMIN' | 'USER' = 'USER';
+        if (groupConfig && account.access_token) {
+          const groupIds = await getAzureGroupIds(account.access_token);
+          const resolved = resolveRoleFromGroups(groupIds, groupConfig.adminGroupId, groupConfig.userGroupId);
+          if (!resolved) { token.error = 'NoGroupAccess'; return token; }
+          role = resolved;
         }
 
         // Find or create user in our DB, sync role from Azure groups
@@ -113,8 +121,8 @@ export const authOptions: NextAuthOptions = {
               role,
             },
           });
-        } else if (dbUser.role !== role) {
-          // Sync role from Azure AD groups on every login
+        } else if (groupConfig && dbUser.role !== role) {
+          // Sync role from Azure AD groups on every login (only if groups configured)
           dbUser = await prisma.user.update({
             where: { id: dbUser.id },
             data: { role },
