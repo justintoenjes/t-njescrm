@@ -17,11 +17,14 @@ function buildActivityText(activities: ActivityEntry[]): string {
     .join('\n');
 }
 
-export async function POST(_: NextRequest, { params }: Ctx) {
+export async function POST(request: NextRequest, { params }: Ctx) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: 'OPENAI_API_KEY nicht konfiguriert' }, { status: 500 });
+
+  let hint = '';
+  try { const body = await request.json(); hint = body.hint?.trim() || ''; } catch { /* no body is fine */ }
 
   const [opp, defaultFormal] = await Promise.all([
     prisma.opportunity.findUnique({
@@ -113,6 +116,7 @@ Antworte mit einem validen JSON-Objekt:
   "body": "E-Mail Text (\\n für Zeilenumbrüche, professionell aber persönlich, auf Deutsch, max. 150 Wörter)"
 }
 
+${hint ? `\nHinweis vom Nutzer (bitte berücksichtigen): ${hint}\n` : ''}
 WICHTIG: Generiere KEINE Grußformel (kein "Mit freundlichen Grüßen", "Beste Grüße" etc.) und KEINE Signatur (kein Name, keine Firma, keine Kontaktdaten am Ende). Der Text endet nach dem inhaltlichen Teil. Grußformel und Signatur werden automatisch angehängt.`;
 
   try {

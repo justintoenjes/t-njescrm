@@ -59,6 +59,8 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
   const [followUpNoteId, setFollowUpNoteId] = useState<string | null>(null);
   const [followUpLoading, setFollowUpLoading] = useState(false);
   const [followUpError, setFollowUpError] = useState('');
+  const [followUpHint, setFollowUpHint] = useState('');
+  const [showFollowUpHint, setShowFollowUpHint] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Opportunities
@@ -316,7 +318,12 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
 
   async function fetchFollowUp() {
     setFollowUpLoading(true); setFollowUpError(''); setFollowUp(null); setFollowUpNoteId(null);
-    const res = await fetch(`/api/leads/${lead.id}/follow-up`, { method: 'POST' });
+    setShowFollowUpHint(false);
+    const res = await fetch(`/api/leads/${lead.id}/follow-up`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hint: followUpHint.trim() || undefined }),
+    });
     const data = await res.json();
     if (!res.ok) { setFollowUpError(data.error ?? 'Fehler'); }
     else {
@@ -482,6 +489,7 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
     aiSummary, aiLoading, aiError, fetchAI,
     // Follow-up
     followUp, setFollowUp, followUpNoteId, followUpLoading, followUpError,
+    followUpHint, setFollowUpHint, showFollowUpHint, setShowFollowUpHint,
     fetchFollowUp, discardFollowUp, sendFollowUp, copied, copyToClipboard,
     // Opportunities
     opportunities, openOppId, setOpenOppId, showNewOppForm, setShowNewOppForm,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Send, Brain } from 'lucide-react';
+import { Send, Brain, X } from 'lucide-react';
 import type { LeadFull, TimelineFilter, Activity } from './types';
 import type { UseLeadDetailReturn } from './useLeadDetail';
 import TimelineFilters from './TimelineFilters';
@@ -29,6 +29,7 @@ export default function RightPanel({ lead, state }: Props) {
     activities, mergedNotes, moveTargets,
     handleMoveNote, deleteNote,
     fetchFollowUp, followUpLoading, followUp,
+    followUpHint, setFollowUpHint, showFollowUpHint, setShowFollowUpHint,
     fetchAI, aiLoading,
     emailsLoaded, emailsError, emailsSyncing,
   } = state;
@@ -57,7 +58,7 @@ export default function RightPanel({ lead, state }: Props) {
           <TimelineFilters active={filter} onChange={setFilter} counts={counts} />
           <div className="flex gap-2 shrink-0">
             <button
-              onClick={fetchFollowUp}
+              onClick={() => showFollowUpHint ? fetchFollowUp() : setShowFollowUpHint(true)}
               disabled={followUpLoading}
               className="flex items-center gap-1.5 text-xs bg-tc-blue/10 hover:bg-tc-blue/20 text-tc-dark border border-tc-blue/30 px-2.5 lg:px-3 py-1.5 rounded-lg transition disabled:opacity-40"
             >
@@ -72,6 +73,28 @@ export default function RightPanel({ lead, state }: Props) {
             </button>
           </div>
         </div>
+        {showFollowUpHint && !followUp && (
+          <div className="px-3 lg:px-5 pb-2">
+            <div className="flex gap-2 items-start">
+              <input
+                value={followUpHint}
+                onChange={e => setFollowUpHint(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') fetchFollowUp(); if (e.key === 'Escape') { setShowFollowUpHint(false); setFollowUpHint(''); } }}
+                placeholder="Kontext/Hinweis für die KI (optional, Enter zum Generieren)…"
+                autoFocus
+                className="flex-1 border border-tc-blue/30 rounded-lg px-3 py-1.5 text-sm bg-tc-blue/5 focus:outline-none focus:ring-2 focus:ring-tc-blue placeholder:text-gray-400"
+              />
+              <button onClick={fetchFollowUp}
+                className="shrink-0 bg-tc-dark hover:bg-tc-dark/90 text-white text-xs px-3 py-1.5 rounded-lg transition">
+                <Send size={12} />
+              </button>
+              <button onClick={() => { setShowFollowUpHint(false); setFollowUpHint(''); }}
+                className="shrink-0 text-gray-400 hover:text-gray-600 text-xs px-2 py-1.5">
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
 
         <NoteInput state={state} />
       </div>

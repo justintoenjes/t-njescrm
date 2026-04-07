@@ -92,6 +92,8 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
   const [followUpNoteId, setFollowUpNoteId] = useState<string | null>(null);
   const [followUpLoading, setFollowUpLoading] = useState(false);
   const [followUpError, setFollowUpError] = useState('');
+  const [followUpHint, setFollowUpHint] = useState('');
+  const [showFollowUpHint, setShowFollowUpHint] = useState(false);
   const [copied, setCopied] = useState(false);
   const [rejectionDraft, setRejectionDraft] = useState<{ subject: string; body: string } | null>(null);
   const [rejectionSending, setRejectionSending] = useState(false);
@@ -368,7 +370,12 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
   async function fetchFollowUp() {
     if (!opp) return;
     setFollowUpLoading(true); setFollowUpError(''); setFollowUp(null); setFollowUpNoteId(null);
-    const res = await fetch(`/api/opportunities/${opp.id}/follow-up`, { method: 'POST' });
+    setShowFollowUpHint(false);
+    const res = await fetch(`/api/opportunities/${opp.id}/follow-up`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hint: followUpHint.trim() || undefined }),
+    });
     const data = await res.json();
     if (!res.ok) setFollowUpError(data.error ?? 'Fehler');
     else {
@@ -731,7 +738,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                   {isRecruiting ? 'Bewerbungs-Notizen' : 'Deal-Notizen'}
                 </h3>
                 <div className="flex gap-2">
-                  <button onClick={fetchFollowUp} disabled={followUpLoading}
+                  <button onClick={() => showFollowUpHint ? fetchFollowUp() : setShowFollowUpHint(true)} disabled={followUpLoading}
                     className="flex items-center gap-1.5 text-xs bg-tc-blue/10 hover:bg-tc-blue/20 text-tc-dark border border-tc-blue/30 px-3 py-1.5 rounded-lg transition disabled:opacity-40">
                     <Send size={12} /> {followUpLoading ? 'Generiere…' : 'Follow-Up'}
                   </button>
@@ -741,6 +748,26 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
                   </button>
                 </div>
               </div>
+              {showFollowUpHint && !followUp && (
+                <div className="flex gap-2 items-start">
+                  <input
+                    value={followUpHint}
+                    onChange={e => setFollowUpHint(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') fetchFollowUp(); if (e.key === 'Escape') { setShowFollowUpHint(false); setFollowUpHint(''); } }}
+                    placeholder="Kontext/Hinweis für die KI (optional, Enter zum Generieren)…"
+                    autoFocus
+                    className="flex-1 border border-tc-blue/30 rounded-lg px-3 py-1.5 text-sm bg-tc-blue/5 focus:outline-none focus:ring-2 focus:ring-tc-blue placeholder:text-gray-400"
+                  />
+                  <button onClick={fetchFollowUp}
+                    className="shrink-0 bg-tc-dark hover:bg-tc-dark/90 text-white text-xs px-3 py-1.5 rounded-lg transition">
+                    <Send size={12} />
+                  </button>
+                  <button onClick={() => { setShowFollowUpHint(false); setFollowUpHint(''); }}
+                    className="shrink-0 text-gray-400 hover:text-gray-600 text-xs px-2 py-1.5">
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
 
               {/* Note Input */}
               <div className="flex gap-2">
