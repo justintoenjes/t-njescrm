@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Trash2, CheckCircle2, Circle, Calendar, User, Link, Save } from 'lucide-react';
+import { useCategory } from '@/lib/category-context';
 
 export type TaskFull = {
   id: string;
@@ -43,6 +44,8 @@ export default function TaskModal({
   onOpenOpportunity,
 }: Props) {
   const isCreate = !taskId;
+  const { category } = useCategory();
+  const oppLabel = category === 'RECRUITING' ? 'Bewerbung' : 'Anfrage';
   const [loading, setLoading] = useState(!isCreate);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -305,7 +308,7 @@ export default function TaskModal({
                         <button
                           onClick={() => { setLinkType('opportunity'); setLinkedLead(null); }}
                           className={`text-xs px-3 py-1.5 rounded-lg border transition ${linkType === 'opportunity' ? 'bg-tc-blue/10 border-tc-blue text-tc-blue' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                        >Anfrage/Bewerbung</button>
+                        >{oppLabel}</button>
                         <button
                           onClick={() => { setLinkType('none'); setLinkedLead(null); setLinkedOpp(null); setLinkSearch(''); setLinkResults([]); }}
                           className={`text-xs px-3 py-1.5 rounded-lg border transition ${linkType === 'none' ? 'bg-gray-100 border-gray-300 text-gray-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
@@ -316,7 +319,7 @@ export default function TaskModal({
                           <input
                             value={linkSearch}
                             onChange={e => setLinkSearch(e.target.value)}
-                            placeholder={linkType === 'lead' ? 'Kontakt suchen…' : 'Anfrage/Bewerbung suchen…'}
+                            placeholder={linkType === 'lead' ? 'Kontakt suchen…' : `${oppLabel} suchen…`}
                             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
                           />
                           {linkResults.length > 0 && (
@@ -340,7 +343,7 @@ export default function TaskModal({
                   ) : (
                     <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50">
                       <span className="flex-1 text-gray-700">
-                        {linkedOpp ? `Anfrage: ${linkedOpp.label}` : `Kontakt: ${linkedLead?.label}`}
+                        {linkedOpp ? `${oppLabel}: ${linkedOpp.label}` : `Kontakt: ${linkedLead?.label}`}
                       </span>
                       <button
                         onClick={() => { setLinkedLead(null); setLinkedOpp(null); setLinkType('none'); }}
