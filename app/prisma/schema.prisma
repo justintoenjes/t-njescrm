@@ -25,6 +25,7 @@ model User {
   attachments        Attachment[]
   pushSubscriptions  PushSubscription[]
   assignedTemplates  ProductTemplate[] @relation("TemplateAssignees")
+  hiddenEmails       Email[]           @relation("HiddenEmails")
 }
 
 model PushSubscription {
@@ -175,6 +176,9 @@ model Email {
   isRead          Boolean        @default(false)
   hasAttachments  Boolean        @default(false)
   direction       EmailDirection
+  isHidden        Boolean        @default(false)
+  hiddenById      String?
+  hiddenBy        User?          @relation("HiddenEmails", fields: [hiddenById], references: [id], onDelete: SetNull)
   syncedAt        DateTime       @default(now())
   leadId          String
   lead            Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)

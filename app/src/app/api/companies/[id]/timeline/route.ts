@@ -43,7 +43,7 @@ export async function GET(_: NextRequest, { params }: Ctx) {
       take: 150,
     }),
     prisma.email.findMany({
-      where: { leadId: { in: leadIds } },
+      where: { leadId: { in: leadIds }, isHidden: false },
       include: {
         lead: { select: { id: true, firstName: true, lastName: true } },
       },

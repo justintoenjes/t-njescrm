@@ -378,23 +378,12 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
     });
     const data = await res.json();
     if (!res.ok) setFollowUpError(data.error ?? 'Fehler');
-    else {
-      setFollowUp(data);
-      if (data.note) {
-        setFollowUpNoteId(data.note.id);
-        setNotes(prev => [data.note, ...prev]);
-      }
-    }
+    else setFollowUp(data);
     setFollowUpLoading(false);
   }
 
-  async function discardFollowUp() {
-    if (followUpNoteId) {
-      await fetch(`/api/notes/${followUpNoteId}`, { method: 'DELETE' });
-      setNotes(prev => prev.filter(n => n.id !== followUpNoteId));
-    }
+  function discardFollowUp() {
     setFollowUp(null);
-    setFollowUpNoteId(null);
     setFollowUpError('');
   }
 

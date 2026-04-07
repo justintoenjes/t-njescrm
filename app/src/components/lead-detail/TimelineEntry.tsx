@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, Phone, Paperclip } from 'lucide-react';
+import { Mail, Phone, Paperclip, EyeOff } from 'lucide-react';
 import NoteCard from '@/components/NoteCard';
 import type { Activity, EnrichedNote } from './types';
 
@@ -10,10 +10,11 @@ type Props = {
   moveTargets: { type: 'lead' | 'opportunity'; label: string; id: string }[];
   onMoveNote: (noteId: string, target: { leadId?: string; opportunityId?: string }) => Promise<void>;
   onDeleteNote: (noteId: string) => void;
+  onHideEmail?: (emailId: string) => void;
   formatDate: (date: string) => string;
 };
 
-export default function TimelineEntry({ activity, moveTargets, onMoveNote, onDeleteNote, formatDate }: Props) {
+export default function TimelineEntry({ activity, moveTargets, onMoveNote, onDeleteNote, onHideEmail, formatDate }: Props) {
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailBody, setEmailBody] = useState<string | null>(null);
   const [emailBodyLoading, setEmailBodyLoading] = useState(false);
@@ -89,7 +90,7 @@ export default function TimelineEntry({ activity, moveTargets, onMoveNote, onDel
           </div>
           <div className="w-px flex-1 bg-gray-100 mt-1" />
         </div>
-        <div className="flex-1 pb-4 min-w-0">
+        <div className="flex-1 pb-4 min-w-0 group">
           <button
             onClick={() => loadEmailBody(email.graphMessageId)}
             className={`w-full text-left rounded-lg px-4 py-3 transition hover:bg-gray-50 ${emailOpen ? 'bg-tc-blue/5 border border-tc-blue/20' : 'bg-gray-50'}`}
@@ -111,6 +112,15 @@ export default function TimelineEntry({ activity, moveTargets, onMoveNote, onDel
                 <span className="text-[11px] text-gray-400">
                   {new Date(email.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                 </span>
+                {onHideEmail && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onHideEmail(email.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition ml-1"
+                    title="E-Mail ausblenden"
+                  >
+                    <EyeOff size={12} />
+                  </button>
+                )}
               </div>
             </div>
           </button>

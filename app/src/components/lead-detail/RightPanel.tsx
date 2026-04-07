@@ -32,6 +32,7 @@ export default function RightPanel({ lead, state }: Props) {
     followUpHint, setFollowUpHint, showFollowUpHint, setShowFollowUpHint,
     fetchAI, aiLoading,
     emailsLoaded, emailsError, emailsSyncing,
+    hideEmail, undoHideEmail, hiddenEmailUndo,
   } = state;
 
   const filteredActivities = filter === 'all'
@@ -104,6 +105,15 @@ export default function RightPanel({ lead, state }: Props) {
         <AISummaryCard state={state} />
         <FollowUpCard lead={lead} state={state} />
 
+        {hiddenEmailUndo && (
+          <div className="flex items-center justify-between bg-gray-800 text-white text-sm rounded-lg px-4 py-2.5 mb-3">
+            <span>E-Mail ausgeblendet</span>
+            <button onClick={undoHideEmail} className="font-medium text-tc-blue hover:text-blue-300 transition ml-3">
+              Rückgängig
+            </button>
+          </div>
+        )}
+
         {emailsError && (
           <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">{emailsError}</div>
         )}
@@ -124,6 +134,7 @@ export default function RightPanel({ lead, state }: Props) {
               moveTargets={moveTargets}
               onMoveNote={handleMoveNote}
               onDeleteNote={deleteNote}
+              onHideEmail={hideEmail}
               formatDate={formatDate}
             />
           ))}

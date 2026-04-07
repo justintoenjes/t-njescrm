@@ -65,6 +65,33 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   });
 }
 
+// PATCH: Hide/unhide an email — any user can hide their own synced emails
+export async function PATCH(request: NextRequest, { params }: Ctx) {
+  const { msgId } = await params;
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  let body;
+  try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
+  const { isHidden } = body;
+  if (typeof isHidden !== 'boolean') return NextResponse.json({ error: 'isHidden required' }, { status: 400 });
+
+  const email = await prisma.email.findFirst({
+    where: { OR: [{ graphMessageId: msgId }, { id: msgId }] },
+  });
+  if (!email) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  await prisma.email.update({
+    where: { id: email.id },
+    data: {
+      isHidden,
+      hiddenById: isHidden ? session.user.id : null,
+    },
+  });
+
+  return NextResponse.json({ ok: true });
+}
+
 function parseRecipients(json: string): string {
   try {
     const arr = JSON.parse(json) as { name: string; address: string }[];

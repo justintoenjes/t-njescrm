@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   }
 
   const emails = await prisma.email.findMany({
-    where: { leadId: id },
+    where: { leadId: id, isHidden: false },
     orderBy: { receivedAt: 'desc' },
   });
 
@@ -135,9 +135,9 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       }
     }
 
-    // Return full list from DB
+    // Return full list from DB (excluding hidden)
     const emails = await prisma.email.findMany({
-      where: { leadId: id },
+      where: { leadId: id, isHidden: false },
       orderBy: { receivedAt: 'desc' },
     });
 

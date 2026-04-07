@@ -105,15 +105,22 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
         if (cancelled) return;
         if (!data.error) setEmails(data.emails ?? []);
         setEmailsLoaded(true);
-        // Then sync from Graph in background (sequential to avoid race)
+        // Then try to sync from Graph in background — silently skip on auth errors
         setEmailsSyncing(true);
         return fetch(`/api/leads/${lead.id}/emails`, { method: 'POST' });
       })
       .then(r => r?.json())
       .then(data => {
         if (cancelled || !data) return;
-        if (data.error) setEmailsError(data.error);
-        else setEmails(data.emails ?? []);
+        // Only show sync errors if we have no DB emails at all
+        if (data.error && !data.emails) {
+          // Don't show auth errors — user may not have MS token
+          if (!data.error.includes('Microsoft') && !data.error.includes('anmelden')) {
+            setEmailsError(data.error);
+          }
+        } else if (data.emails) {
+          setEmails(data.emails);
+        }
         setEmailsSyncing(false);
       })
       .catch(() => {
@@ -326,23 +333,12 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
     });
     const data = await res.json();
     if (!res.ok) { setFollowUpError(data.error ?? 'Fehler'); }
-    else {
-      setFollowUp(data);
-      if (data.note) {
-        setFollowUpNoteId(data.note.id);
-        setLeadNotes(prev => [data.note, ...prev]);
-      }
-    }
+    else setFollowUp(data);
     setFollowUpLoading(false);
   }
 
-  async function discardFollowUp() {
-    if (followUpNoteId) {
-      await fetch(`/api/notes/${followUpNoteId}`, { method: 'DELETE' });
-      setLeadNotes(prev => prev.filter(n => n.id !== followUpNoteId));
-    }
+  function discardFollowUp() {
     setFollowUp(null);
-    setFollowUpNoteId(null);
     setFollowUpError('');
   }
 
@@ -468,6 +464,38 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
     setTasks(prev => prev.filter(t => t.id !== taskId));
   }
 
+  const [hiddenEmailUndo, setHiddenEmailUndo] = useState<{ id: string; timer: NodeJS.Timeout } | null>(null);
+
+  function hideEmail(emailId: string) {
+    // Optimistically hide from UI
+    setEmails(prev => prev.filter(e => e.id !== emailId));
+
+    // Cancel any previous undo timer
+    if (hiddenEmailUndo) clearTimeout(hiddenEmailUndo.timer);
+
+    // Set a 5s timer — after which it actually persists
+    const timer = setTimeout(async () => {
+      await fetch(`/api/emails/${emailId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isHidden: true }),
+      });
+      setHiddenEmailUndo(null);
+    }, 5000);
+
+    setHiddenEmailUndo({ id: emailId, timer });
+  }
+
+  function undoHideEmail() {
+    if (!hiddenEmailUndo) return;
+    clearTimeout(hiddenEmailUndo.timer);
+    // Re-fetch emails to restore the hidden one
+    fetch(`/api/leads/${lead.id}/emails`)
+      .then(r => r.json())
+      .then(data => { if (!data.error) setEmails(data.emails ?? []); });
+    setHiddenEmailUndo(null);
+  }
+
   async function deleteLead() {
     if (!confirm(`Lead "${`${lead.firstName} ${lead.lastName}`.trim()}" wirklich löschen?`)) return;
     await fetch(`/api/leads/${lead.id}`, { method: 'DELETE' });
@@ -500,7 +528,7 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
     tasks, tasksLoaded, newTaskTitle, setNewTaskTitle, newTaskDue, setNewTaskDue,
     addingTask, addTask, toggleTask, deleteTask, showCompleted, setShowCompleted, loadTasks,
     // Emails
-    emails, emailsLoaded, emailsError, emailsSyncing,
+    emails, emailsLoaded, emailsError, emailsSyncing, hideEmail, undoHideEmail, hiddenEmailUndo,
     // Computed
     activities, activeOppCount, isRecruiting,
     // Actions

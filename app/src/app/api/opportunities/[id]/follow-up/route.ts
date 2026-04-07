@@ -131,19 +131,7 @@ WICHTIG: Generiere KEINE Grußformel (kein "Mit freundlichen Grüßen", "Beste G
     try { parsed = JSON.parse(rawText); }
     catch { console.error('Follow-Up JSON parse error, raw:', rawText); return NextResponse.json({ error: 'KI-Antwort war kein gültiges JSON' }, { status: 502 }); }
 
-    // Persist as AI-generated note
-    const noteContent = `📧 **KI Follow-Up**\n**Betreff:** ${parsed.subject}\n\n${parsed.body}`;
-    const note = await prisma.note.create({
-      data: {
-        content: noteContent,
-        isAiGenerated: true,
-        opportunityId: id,
-        authorId: session.user.id,
-      },
-      include: { author: { select: { id: true, name: true } } },
-    });
-
-    return NextResponse.json({ ...parsed, note });
+    return NextResponse.json(parsed);
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unbekannter Fehler';
     return NextResponse.json({ error: `OpenAI-Fehler: ${msg}` }, { status: 500 });

@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Email" ADD COLUMN "isHidden" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Email" ADD COLUMN "hiddenById" TEXT;
+
+-- AddForeignKey
+ALTER TABLE "Email" ADD CONSTRAINT "Email_hiddenById_fkey" FOREIGN KEY ("hiddenById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
