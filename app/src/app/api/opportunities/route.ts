@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
         ...(categoryFilter ? { lead: { category: categoryFilter } } : {}),
       },
       include: {
-        lead: { select: { id: true, firstName: true, lastName: true, category: true, companyRef: { select: { id: true, name: true } } } },
+        lead: { select: { id: true, firstName: true, lastName: true, email: true, category: true, companyRef: { select: { id: true, name: true } } } },
         assignedTo: { select: { id: true, name: true } },
         tasks: { where: { isCompleted: false, dueDate: { lt: now } }, select: { id: true } },
       },

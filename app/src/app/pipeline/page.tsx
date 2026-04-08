@@ -17,7 +17,7 @@ import CompanyDetailModal from '@/components/CompanyDetailModal';
 import TemplateDetailModal from '@/components/TemplateDetailModal';
 import { OPP_STAGE_LABELS, OPP_STAGE_ORDER, OPP_STAGE_COLORS, OpportunityStage, getStageOrder } from '@/lib/opportunity';
 import { TEMP_LABELS, TEMP_COLORS, Temperature } from '@/lib/temperature';
-import { GripVertical, Plus, X, FileText, Mail } from 'lucide-react';
+import { GripVertical, Plus, X, FileText, Mail, Send } from 'lucide-react';
 import CompanyPicker from '@/components/CompanyPicker';
 import { useCategory } from '@/lib/category-context';
 
@@ -27,7 +27,7 @@ interface OppCard {
   stage: OpportunityStage;
   temperature: Temperature;
   value: number | null;
-  lead: { id: string; firstName: string; lastName: string; companyRef?: { id: string; name: string } | null };
+  lead: { id: string; firstName: string; lastName: string; email?: string | null; companyRef?: { id: string; name: string } | null };
   assignedTo?: { id: string; name: string } | null;
 }
 
@@ -135,6 +135,10 @@ export default function PipelinePage() {
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [creatingOpp, setCreatingOpp] = useState(false);
+  const [emailBanner, setEmailBanner] = useState<{ oppId: string; leadEmail: string; subject: string; body: string; type: 'rejection' | 'interview' } | null>(null);
+  const [emailBannerSending, setEmailBannerSending] = useState(false);
+  const [emailBannerError, setEmailBannerError] = useState('');
+  const [emailBannerEditing, setEmailBannerEditing] = useState(false);
 
   // Load templates when create opens
   useEffect(() => {
@@ -328,13 +332,7 @@ export default function PipelinePage() {
     const opp = opps.find(o => o.id === active.id);
     if (!opp) return;
 
-    // For stages with email intercepts (REJECTED, INTERVIEW), open the modal instead of saving directly
-    const interceptStages: OpportunityStage[] = ['REJECTED', 'INTERVIEW'];
-    if (interceptStages.includes(opp.stage) && category === 'RECRUITING') {
-      setOpenOppId(opp.id);
-      return;
-    }
-
+    // Save stage change to API
     const res = await fetch(`/api/opportunities/${opp.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -342,7 +340,66 @@ export default function PipelinePage() {
     });
     if (!res.ok) {
       load();
+      return;
     }
+
+    // For stages with email intercepts (REJECTED, INTERVIEW), show inline email banner
+    const interceptStages: OpportunityStage[] = ['REJECTED', 'INTERVIEW'];
+    if (interceptStages.includes(opp.stage) && category === 'RECRUITING' && opp.lead.email) {
+      try {
+        const cfgRes = await fetch('/api/config');
+        if (cfgRes.ok) {
+          const cfg = await cfgRes.json();
+          const leadName = `${opp.lead.firstName} ${opp.lead.lastName}`.trim();
+          const firma = opp.lead.companyRef?.name || '';
+          const replace = (t: string) => t
+            .replace(/\{\{NAME\}\}/g, leadName)
+            .replace(/\{\{VORNAME\}\}/g, opp.lead.firstName)
+            .replace(/\{\{NACHNAME\}\}/g, opp.lead.lastName)
+            .replace(/\{\{JOBTITEL\}\}/g, opp.title)
+            .replace(/\{\{FIRMA\}\}/g, firma)
+            .replace(/\{\{BUCHUNGSLINK\}\}/g, cfg.interview_booking_link || '');
+
+          if (opp.stage === 'REJECTED' && cfg.rejection_template) {
+            setEmailBanner({
+              oppId: opp.id, leadEmail: opp.lead.email,
+              subject: replace(cfg.rejection_subject_template || ''),
+              body: replace(cfg.rejection_template),
+              type: 'rejection',
+            });
+            setEmailBannerError('');
+          } else if (opp.stage === 'INTERVIEW' && cfg.interview_template) {
+            setEmailBanner({
+              oppId: opp.id, leadEmail: opp.lead.email,
+              subject: replace(cfg.interview_subject_template || ''),
+              body: replace(cfg.interview_template),
+              type: 'interview',
+            });
+            setEmailBannerError('');
+          }
+        }
+      } catch { /* config fetch failed, just skip email */ }
+    }
+  }
+
+  async function sendBannerEmail() {
+    if (!emailBanner) return;
+    setEmailBannerSending(true);
+    setEmailBannerError('');
+    const res = await fetch('/api/emails/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: emailBanner.leadEmail, subject: emailBanner.subject, bodyText: emailBanner.body }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setEmailBannerError(data.error ?? 'Senden fehlgeschlagen');
+      setEmailBannerSending(false);
+      return;
+    }
+    setEmailBannerSending(false);
+    setEmailBanner(null);
+    setEmailBannerEditing(false);
   }
 
   function handleOppUpdate(updated: OpportunityFull) {
@@ -493,6 +550,68 @@ export default function PipelinePage() {
             </div>
           </div>
         )}
+        {emailBanner && (
+          <div className="mb-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2">
+                <Mail size={16} className="text-tc-blue shrink-0" />
+                <span className="text-sm font-medium text-gray-900">
+                  {emailBanner.type === 'rejection' ? 'Absage senden?' : 'Einladung senden?'}
+                </span>
+                <span className="text-xs text-gray-400">an {emailBanner.leadEmail}</span>
+              </div>
+              <button onClick={() => { setEmailBanner(null); setEmailBannerEditing(false); }} className="text-gray-400 hover:text-gray-600">
+                <X size={16} />
+              </button>
+            </div>
+            {emailBannerEditing ? (
+              <>
+                <input
+                  value={emailBanner.subject}
+                  onChange={e => setEmailBanner({ ...emailBanner, subject: e.target.value })}
+                  className="w-full text-sm border border-gray-200 rounded px-3 py-1.5 mb-2 focus:outline-none focus:ring-2 focus:ring-tc-blue"
+                  placeholder="Betreff"
+                />
+                <textarea
+                  value={emailBanner.body}
+                  onChange={e => setEmailBanner({ ...emailBanner, body: e.target.value })}
+                  rows={6}
+                  className="w-full text-sm border border-gray-200 rounded px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-tc-blue leading-relaxed resize-y"
+                />
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-1 font-medium">{emailBanner.subject}</p>
+                <div className="text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded px-3 py-2 whitespace-pre-wrap max-h-32 overflow-y-auto mb-3 leading-relaxed">
+                  {emailBanner.body}
+                </div>
+              </>
+            )}
+            {emailBannerError && <p className="text-sm text-red-600 mb-2">{emailBannerError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={sendBannerEmail}
+                disabled={emailBannerSending}
+                className="flex items-center gap-1.5 text-sm bg-tc-blue text-white px-3 py-1.5 rounded-lg hover:bg-tc-blue/90 transition disabled:opacity-50"
+              >
+                <Send size={13} /> {emailBannerSending ? 'Senden…' : 'Senden'}
+              </button>
+              <button
+                onClick={() => setEmailBannerEditing(!emailBannerEditing)}
+                className="text-sm text-tc-blue hover:text-tc-blue/80 px-3 py-1.5"
+              >
+                {emailBannerEditing ? 'Vorschau' : 'Bearbeiten'}
+              </button>
+              <button
+                onClick={() => { setEmailBanner(null); setEmailBannerEditing(false); }}
+                className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5"
+              >
+                Überspringen
+              </button>
+            </div>
+          </div>
+        )}
+
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
