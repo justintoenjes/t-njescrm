@@ -116,6 +116,7 @@ const sseServer = http.createServer((req, res) => {
 // CALL format: date;CALL;connId;extension;ownNumber;externalNumber;SIP
 // RING format: date;RING;connId;extension;callerNumber;calledNumber;SIP
 function parseLine(line) {
+  console.log(`[Raw] ${line.trim()}`);
   const parts = line.trim().split(';');
   if (parts.length < 4) return null;
 
