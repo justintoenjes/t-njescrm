@@ -102,7 +102,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
 
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
-  const { firstName, lastName, companyId, email, phone, archived, assignedToId, formalAddress } = body;
+  const { firstName, lastName, companyId, email, phone, position, archived, assignedToId, formalAddress } = body;
 
   // Track assignment change for push notification
   const oldLead = (isAdmin && assignedToId !== undefined)
@@ -117,6 +117,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
       ...(companyId !== undefined ? { companyId: companyId || null } : {}),
       ...(email !== undefined ? { email: email || null } : {}),
       ...(phone !== undefined ? { phone: normalizePhone(phone) || null } : {}),
+      ...(position !== undefined ? { position: position || null } : {}),
       ...(archived !== undefined ? { archived } : {}),
       ...(formalAddress !== undefined ? { formalAddress } : {}),
       ...(isAdmin && assignedToId !== undefined ? { assignedToId: assignedToId || null } : {}),

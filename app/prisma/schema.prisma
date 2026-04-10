@@ -53,6 +53,7 @@ model Lead {
   companyRef       Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
   email            String?
   phone            String?
+  position         String?
   category         LeadCategory  @default(VERTRIEB)
   formalAddress    Boolean       @default(false)
   archived         Boolean       @default(false)

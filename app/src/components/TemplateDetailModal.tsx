@@ -375,7 +375,7 @@ export default function TemplateDetailModal({ templateId, isAdmin, onClose, onUp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 lg:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 lg:p-4 modal-safe-area"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="bg-white lg:rounded-2xl shadow-2xl w-full h-full lg:w-[95vw] lg:max-w-7xl lg:h-[90vh] flex flex-col">

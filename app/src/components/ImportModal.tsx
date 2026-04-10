@@ -37,7 +37,7 @@ export default function ImportModal({ onClose, onImported }: Props) {
   const { category } = useCategory();
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 modal-safe-area">
       <div className={`bg-white rounded-xl shadow-xl w-full flex flex-col max-h-[90vh] transition-all ${
         tab === 'mailbox' ? 'max-w-5xl' : 'max-w-md'
       }`}>

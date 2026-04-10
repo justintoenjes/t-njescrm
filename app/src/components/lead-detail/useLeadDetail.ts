@@ -31,6 +31,7 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
     companyName: lead.companyRef?.name ?? '',
     email: lead.email ?? '',
     phone: lead.phone ?? '',
+    position: lead.position ?? '',
     assignedToId: lead.assignedToId ?? '',
     formalAddress: lead.formalAddress ?? false,
   });
@@ -214,6 +215,7 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
         companyId: form.companyId || null,
         email: form.email || null,
         phone: form.phone || null,
+        position: form.position || null,
         assignedToId: form.assignedToId || null,
         formalAddress: form.formalAddress,
       }),

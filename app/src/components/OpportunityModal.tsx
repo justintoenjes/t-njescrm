@@ -449,7 +449,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
 
   if (!opp) {
     return (
-      <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 lg:p-4">
+      <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 lg:p-4 modal-safe-area">
         <div className="bg-white rounded-2xl p-8 text-gray-400">Laden…</div>
       </div>
     );
@@ -461,7 +461,7 @@ export default function OpportunityModal({ opportunityId, users, isAdmin, onClos
   const isRecruiting = opp.lead.category === 'RECRUITING';
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 lg:p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 lg:p-4 modal-safe-area" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white lg:rounded-2xl shadow-2xl w-full h-full lg:w-[95vw] lg:max-w-7xl lg:h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b shrink-0">

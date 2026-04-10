@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const stageFilter = searchParams.get('stage') as OpportunityStage | null;
   const categoryFilter = searchParams.get('category') as LeadCategory | null;
+  const search = searchParams.get('search') ?? '';
   const isAdmin = session.user.role === 'ADMIN';
   const now = new Date();
 
@@ -21,6 +22,13 @@ export async function GET(request: NextRequest) {
         ...(isAdmin ? {} : { assignedToId: session.user.id }),
         ...(stageFilter ? { stage: stageFilter } : {}),
         ...(categoryFilter ? { lead: { category: categoryFilter } } : {}),
+        ...(search ? {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' as const } },
+            { lead: { firstName: { contains: search, mode: 'insensitive' as const } } },
+            { lead: { lastName: { contains: search, mode: 'insensitive' as const } } },
+          ],
+        } : {}),
       },
       include: {
         lead: { select: { id: true, firstName: true, lastName: true, email: true, category: true, companyRef: { select: { id: true, name: true } } } },

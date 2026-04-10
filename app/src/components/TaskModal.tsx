@@ -118,7 +118,8 @@ export default function TaskModal({
         const res = await fetch(`/api/leads?search=${encodeURIComponent(linkSearch)}`);
         if (res.ok) {
           const data = await res.json();
-          setLinkResults(data.slice(0, 8).map((l: any) => ({
+          const leads = data.leads ?? data;
+          setLinkResults(leads.slice(0, 8).map((l: any) => ({
             id: l.id,
             label: `${l.firstName} ${l.lastName}`.trim() + (l.companyRef?.name ? ` · ${l.companyRef.name}` : ''),
           })));
@@ -208,7 +209,7 @@ export default function TaskModal({
   ));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 modal-safe-area" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">

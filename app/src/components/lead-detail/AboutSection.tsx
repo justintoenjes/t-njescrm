@@ -45,6 +45,17 @@ export default function AboutSection({ lead, isAdmin, users, state, collapsed, o
             </div>
             {lead.category !== 'RECRUITING' && (
               <div>
+                <label className="text-xs text-gray-500 font-medium">Position</label>
+                <input
+                  value={form.position}
+                  onChange={(e) => setForm({ ...form, position: e.target.value })}
+                  className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+                  placeholder="z.B. Geschäftsführer"
+                />
+              </div>
+            )}
+            {lead.category !== 'RECRUITING' && (
+              <div>
                 <label className="text-xs text-gray-500 font-medium">Firma</label>
                 <div className="mt-1">
                   <CompanyPicker

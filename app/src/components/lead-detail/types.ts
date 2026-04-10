@@ -44,6 +44,7 @@ export type LeadFull = {
   companyRef: { id: string; name: string } | null;
   email: string | null;
   phone: string | null;
+  position: string | null;
   formalAddress: boolean;
   archived: boolean;
   phase: LeadPhase;
