@@ -76,9 +76,11 @@ export async function POST(request: NextRequest) {
   });
 
   // Create Outlook calendar event in assigned user's calendar
+  console.log('[Calendar] Task created:', { id: task.id, dueDate: parsedDueDate, assignedToId: task.assignedToId });
   if (parsedDueDate && task.assignedToId) {
     try {
       const assignedUser = await prisma.user.findUnique({ where: { id: task.assignedToId }, select: { email: true } });
+      console.log('[Calendar] Assigned user email:', assignedUser?.email);
       if (assignedUser?.email) {
         const event = await createCalendarEventForUser(assignedUser.email, {
           subject: `📋 ${task.title}`,
@@ -93,8 +95,8 @@ export async function POST(request: NextRequest) {
           (task as any).calendarEventId = event.id;
         }
       }
-    } catch (e) {
-      console.error('[Calendar] Failed to create event for task:', task.id, e);
+    } catch (e: any) {
+      console.error('[Calendar] Failed to create event for task:', task.id, e?.message ?? e);
     }
   }
 
