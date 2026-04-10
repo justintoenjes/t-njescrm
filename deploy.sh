@@ -15,9 +15,11 @@ APP_DIR="/home/microcrm/app"
 IMAGE="microcrm-app"
 LOCAL_APP="$(dirname "$0")/app"
 LOCAL_CALLMONITOR="$(dirname "$0")/callmonitor"
+LOCAL_SIP_GATEWAY="$(dirname "$0")/sip-gateway"
 SSH_CMD="ssh $REMOTE"
 RSYNC_SSH="ssh"
 CALLMONITOR_HASH_FILE="$(dirname "$0")/.callmonitor-hash"
+SIP_GATEWAY_HASH_FILE="$(dirname "$0")/.sip-gateway-hash"
 
 deploy_timer_start "$(dirname "$0")/.deploy-stats"
 
@@ -86,7 +88,24 @@ if [ "$CALLMONITOR_HASH" != "$OLD_HASH" ]; then
 else
   echo "==> Callmonitor unverändert, skip."
 fi
-deploy_timer "sync nginx+certs+callmonitor"
+# ── Sync + Deploy SIP Gateway (nur wenn geändert) ──────────────────────────
+SIP_GW_HASH=$(find "$LOCAL_SIP_GATEWAY" -type f -exec md5 -q {} \; 2>/dev/null | sort | md5 -q)
+OLD_SIP_GW_HASH=$(cat "$SIP_GATEWAY_HASH_FILE" 2>/dev/null || echo "")
+SIP_GW_CHANGED=false
+
+if [ "$SIP_GW_HASH" != "$OLD_SIP_GW_HASH" ]; then
+  SIP_GW_CHANGED=true
+  echo "==> Syncing SIP gateway (geändert)..."
+  rsync -az --checksum --delete \
+    --rsync-path="sudo -u $REMOTE_USER rsync" \
+    -e "$RSYNC_SSH" \
+    "$LOCAL_SIP_GATEWAY/" "$REMOTE:/home/$REMOTE_USER/sip-gateway/"
+  echo "$SIP_GW_HASH" > "$SIP_GATEWAY_HASH_FILE"
+else
+  echo "==> SIP gateway unverändert, skip."
+fi
+
+deploy_timer "sync nginx+certs+callmonitor+sip-gw"
 
 run_remote "mkdir -p /home/$REMOTE_USER/uploads"
 
@@ -133,6 +152,12 @@ if [ "$CALLMONITOR_CHANGED" = true ]; then
   remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-callmonitor.service"
   wait_for_service "microcrm-callmonitor.service" 20
   deploy_timer "restart callmonitor"
+fi
+
+if [ "$SIP_GW_CHANGED" = true ]; then
+  echo "==> Restarting SIP gateway..."
+  run_remote "cd /home/$REMOTE_USER/sip-gateway && podman-compose down 2>/dev/null; podman-compose up -d"
+  deploy_timer "restart sip-gw"
 fi
 
 remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-proxy.service"

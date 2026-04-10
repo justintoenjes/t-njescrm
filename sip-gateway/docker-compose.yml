@@ -1,0 +1,28 @@
+# WebRTC-SIP Gateway for FritzBox
+# Kamailio + rtpengine: bridges browser WebSocket SIP to FritzBox UDP SIP
+#
+# Based on https://github.com/florian-h05/webrtc-sip-gw
+#
+# Setup:
+#   1. Create IP phone in FritzBox (Telefonie > Telefoniegeräte > Neues Gerät > IP-Telefon)
+#   2. Place TLS certs in ./ssl/ (fullchain.pem + privkey.pem) — or set TLS_DISABLE=true
+#   3. Run: podman-compose up -d
+
+services:
+  webrtc-sip-gw:
+    container_name: webrtc-sip-gw
+    image: ghcr.io/florian-h05/webrtc-sip-gw
+    restart: always
+    network_mode: host
+    volumes:
+      - ./ssl:/etc/ssl/kamailio
+    environment:
+      # Server's own IP address on the local network
+      - MY_IP=192.168.178.162
+      # Domain name (used for SIP domain matching)
+      - MY_DOMAIN=microcrm
+      # WebSocket ports for browser SIP clients
+      - WS_PORT=8080
+      - WSS_PORT=8443
+      # TLS: disable if proxying through nginx with its own certs
+      - TLS_DISABLE=true

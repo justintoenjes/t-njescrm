@@ -3,6 +3,7 @@ import SessionProviderWrapper from '@/components/SessionProviderWrapper';
 import { CategoryProvider } from '@/lib/category-context';
 import CallPopup from '@/components/CallPopup';
 import PushNotificationProvider from '@/components/PushNotificationInit';
+import SipProvider from '@/components/SipProvider';
 import './globals.css';
 
 export const viewport: Viewport = {
@@ -42,8 +43,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionProviderWrapper>
           <CategoryProvider>
             <PushNotificationProvider>
-              {children}
-              <CallPopup />
+              <SipProvider>
+                {children}
+                <CallPopup />
+              </SipProvider>
             </PushNotificationProvider>
           </CategoryProvider>
         </SessionProviderWrapper>

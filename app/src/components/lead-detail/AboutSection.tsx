@@ -3,6 +3,7 @@
 import { Save, Phone, ChevronDown, ChevronRight } from 'lucide-react';
 import CompanyPicker from '@/components/CompanyPicker';
 import AttachmentSection from '@/components/AttachmentSection';
+import { useSip } from '@/components/SipProvider';
 import type { LeadFull, AttachmentData, UserOption } from './types';
 import type { UseLeadDetailReturn } from './useLeadDetail';
 
@@ -17,6 +18,7 @@ type Props = {
 
 export default function AboutSection({ lead, isAdmin, users, state, collapsed, onToggle }: Props) {
   const { form, setForm, saving, saveChanges, attachments, setAttachments, dialMethod } = state;
+  const { actions: sipActions, state: sipState } = useSip();
 
   return (
     <div className="border border-gray-100 rounded-xl">
@@ -102,7 +104,17 @@ export default function AboutSection({ lead, isAdmin, users, state, collapsed, o
                   className="min-w-0 flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
                 />
                 {form.phone && (
-                  dialMethod === 'fritzbox' ? (
+                  dialMethod === 'sip' ? (
+                    <button
+                      type="button"
+                      onClick={() => sipActions.call(form.phone)}
+                      disabled={sipState.callState !== 'idle' || !sipState.registered}
+                      className="shrink-0 px-2.5 py-2 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-lg transition disabled:opacity-50"
+                      title={sipState.registered ? 'Anrufen (Browser SIP)' : 'SIP nicht verbunden'}
+                    >
+                      <Phone size={14} />
+                    </button>
+                  ) : dialMethod === 'fritzbox' ? (
                     <button
                       type="button"
                       onClick={async () => {

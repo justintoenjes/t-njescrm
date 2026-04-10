@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { encryptSipPassword } from '@/lib/sip-crypto';
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -10,13 +11,15 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { dialMethod: true, emailSignature: true, nameOrder: true, password: true },
+    select: { dialMethod: true, emailSignature: true, nameOrder: true, password: true, sipUsername: true },
   });
   return NextResponse.json({
     dialMethod: user?.dialMethod ?? 'tel',
     emailSignature: user?.emailSignature ?? '',
     nameOrder: user?.nameOrder ?? 'lastFirst',
     hasPassword: !!(user?.password),
+    sipUsername: user?.sipUsername ?? '',
+    hasSipPassword: !!(user?.sipUsername),
   });
 }
 
@@ -27,8 +30,8 @@ export async function PUT(request: NextRequest) {
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
 
-  const { dialMethod, emailSignature, nameOrder, currentPassword, newPassword, deletePassword } = body;
-  const validMethods = ['tel', 'fritzbox'];
+  const { dialMethod, emailSignature, nameOrder, currentPassword, newPassword, deletePassword, sipUsername, sipPassword } = body;
+  const validMethods = ['tel', 'fritzbox', 'sip'];
   if (dialMethod && !validMethods.includes(dialMethod)) {
     return NextResponse.json({ error: 'Ungültige Wählmethode' }, { status: 400 });
   }
@@ -63,6 +66,8 @@ export async function PUT(request: NextRequest) {
       ...(dialMethod !== undefined ? { dialMethod } : {}),
       ...(emailSignature !== undefined ? { emailSignature } : {}),
       ...(nameOrder !== undefined ? { nameOrder } : {}),
+      ...(sipUsername !== undefined ? { sipUsername } : {}),
+      ...(sipPassword !== undefined ? { sipPassword: sipPassword ? encryptSipPassword(sipPassword) : null } : {}),
     },
   });
 

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Phone, PhoneIncoming, PhoneOff, PhoneOutgoing, X } from 'lucide-react';
+import { Phone, PhoneIncoming, PhoneOff, PhoneOutgoing, X, Mic, MicOff, Pause, Play, Grid3X3 } from 'lucide-react';
+import { useSip } from '@/components/SipProvider';
 
 type CallEvent = {
   type: 'ring' | 'connect' | 'disconnect';
@@ -15,10 +16,40 @@ type CallEvent = {
 
 type ActiveCall = CallEvent & { visible: boolean };
 
+function normalizeNumber(n: string): string {
+  return n.replace(/[\s\-()]/g, '').replace(/^\+49/, '0');
+}
+
+function CallDuration({ startTime }: { startTime: number }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setElapsed(Math.floor((Date.now() - startTime) / 1000)), 1000);
+    return () => clearInterval(interval);
+  }, [startTime]);
+  return <span>{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</span>;
+}
+
+function DTMFPad({ onTone }: { onTone: (tone: string) => void }) {
+  const keys = ['1','2','3','4','5','6','7','8','9','*','0','#'];
+  return (
+    <div className="grid grid-cols-3 gap-1 mt-2">
+      {keys.map(k => (
+        <button key={k} onClick={() => onTone(k)}
+          className="w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-semibold text-gray-700 transition">
+          {k}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function CallPopup() {
   const { status } = useSession();
+  const { state: sip, actions: sipActions, enabled: sipEnabled } = useSip();
   const [call, setCall] = useState<ActiveCall | null>(null);
+  const [showDTMF, setShowDTMF] = useState(false);
 
+  // SSE callmonitor events
   useEffect(() => {
     if (status !== 'authenticated') return;
 
@@ -36,7 +67,6 @@ export default function CallPopup() {
           } else if (event.type === 'connect') {
             setCall(prev => prev ? { ...prev, ...event, type: 'connect' } : null);
           } else if (event.type === 'disconnect') {
-            // Notify open modals to refresh
             window.dispatchEvent(new CustomEvent('call-ended', { detail: event }));
             setCall(prev => {
               if (!prev) return null;
@@ -58,7 +88,111 @@ export default function CallPopup() {
     return () => { es?.close(); clearTimeout(retryTimer); };
   }, [status]);
 
-  if (!call?.visible) return null;
+  // Determine if SIP is handling the current call (deduplicate)
+  const sipActive = sipEnabled && sip.callState !== 'idle';
+  const sipNumber = sip.remoteNumber ? normalizeNumber(sip.remoteNumber) : null;
+  const sseNumber = call?.externalNumber ? normalizeNumber(call.externalNumber) : null;
+  const sipHandlingThisCall = sipActive && sipNumber && sseNumber && (sipNumber === sseNumber || sipNumber.endsWith(sseNumber) || sseNumber.endsWith(sipNumber));
+
+  // SIP call popup
+  if (sipActive) {
+    const isRinging = sip.callState === 'ringing';
+    const isConnected = sip.callState === 'connected';
+    const isCalling = sip.callState === 'calling';
+
+    return (
+      <div className="fixed bottom-6 right-6 z-[300]">
+        <div className={`rounded-2xl shadow-2xl border p-4 min-w-[280px] ${
+          isConnected ? 'bg-green-50 border-green-200' :
+          isRinging && sip.callDirection === 'incoming' ? 'bg-tc-blue/10 border-tc-blue/30' :
+          'bg-amber-50 border-amber-200'
+        }`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-full ${
+                isConnected ? 'bg-green-200' :
+                isRinging && sip.callDirection === 'incoming' ? 'bg-tc-blue/20 animate-pulse' :
+                'bg-amber-200'
+              }`}>
+                {isConnected ? <Phone size={18} className="text-green-600" /> :
+                 sip.callDirection === 'incoming' ? <PhoneIncoming size={18} className="text-tc-blue" /> :
+                 <PhoneOutgoing size={18} className="text-amber-600" />}
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">
+                  {isConnected ? (sip.onHold ? 'Gehalten' : 'Verbunden') :
+                   isRinging && sip.callDirection === 'incoming' ? 'Eingehender Anruf' :
+                   isCalling ? 'Wählt...' : 'Anruf'}
+                </p>
+                <p className="text-sm font-semibold text-gray-900">{sip.remoteNumber ?? 'Unbekannt'}</p>
+                {isConnected && sip.callStart && (
+                  <p className="text-xs text-gray-400 mt-0.5"><CallDuration startTime={sip.callStart} /></p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Call Controls */}
+          <div className="flex items-center gap-2 mt-3">
+            {/* Incoming: Answer + Reject */}
+            {isRinging && sip.callDirection === 'incoming' && (
+              <>
+                <button onClick={sipActions.answer}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium py-2 rounded-lg transition">
+                  <Phone size={14} /> Annehmen
+                </button>
+                <button onClick={sipActions.hangup}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 rounded-lg transition">
+                  <PhoneOff size={14} /> Ablehnen
+                </button>
+              </>
+            )}
+
+            {/* Connected: Mute, Hold, DTMF, Hangup */}
+            {isConnected && (
+              <>
+                <button onClick={sipActions.toggleMute}
+                  className={`p-2 rounded-lg border transition ${sip.muted ? 'bg-red-100 border-red-300 text-red-600' : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200'}`}
+                  title={sip.muted ? 'Stummschaltung aufheben' : 'Stummschalten'}>
+                  {sip.muted ? <MicOff size={16} /> : <Mic size={16} />}
+                </button>
+                <button onClick={sipActions.toggleHold}
+                  className={`p-2 rounded-lg border transition ${sip.onHold ? 'bg-amber-100 border-amber-300 text-amber-600' : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200'}`}
+                  title={sip.onHold ? 'Fortsetzen' : 'Halten'}>
+                  {sip.onHold ? <Play size={16} /> : <Pause size={16} />}
+                </button>
+                <button onClick={() => setShowDTMF(!showDTMF)}
+                  className={`p-2 rounded-lg border transition ${showDTMF ? 'bg-tc-blue/10 border-tc-blue/30 text-tc-blue' : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200'}`}
+                  title="Tastatur">
+                  <Grid3X3 size={16} />
+                </button>
+                <button onClick={sipActions.hangup}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 rounded-lg transition">
+                  <PhoneOff size={14} /> Auflegen
+                </button>
+              </>
+            )}
+
+            {/* Calling: Cancel */}
+            {isCalling && (
+              <button onClick={sipActions.hangup}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 rounded-lg transition">
+                <PhoneOff size={14} /> Abbrechen
+              </button>
+            )}
+          </div>
+
+          {/* DTMF Pad */}
+          {showDTMF && isConnected && (
+            <DTMFPad onTone={sipActions.sendDTMF} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // SSE-based popup (original) — suppress if SIP is handling the same call
+  if (!call?.visible || sipHandlingThisCall) return null;
 
   const isConnected = call.type === 'connect';
   const isDisconnected = call.type === 'disconnect';

@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { useState, useRef, useEffect } from 'react';
-import { Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3, Plus, Search } from 'lucide-react';
+import { Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3, Plus, Search, Phone } from 'lucide-react';
 import { useCategory } from '@/lib/category-context';
 import GlobalSearch from '@/components/GlobalSearch';
+import { useSip } from '@/components/SipProvider';
 import type { LucideIcon } from 'lucide-react';
 
 type NavItem = { href: string; label: string; icon: LucideIcon; vertriebOnly?: boolean; recruitingOnly?: boolean };
@@ -24,6 +25,7 @@ export default function Header() {
   const router = useRouter();
   const { data: session } = useSession();
   const { category, setCategory } = useCategory();
+  const { state: sipState, enabled: sipEnabled } = useSip();
   const [createOpen, setCreateOpen] = useState(false);
   const createRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +169,20 @@ export default function Header() {
             onOpenTemplate={(id) => router.push(`/templates?open=${id}`)}
             onOpenOpportunity={(id) => router.push(`/pipeline?open=${id}`)}
           />
+
+          {/* SIP Status */}
+          {sipEnabled && (
+            <div
+              className="flex items-center gap-1 px-1.5 py-1 rounded-md text-xs"
+              title={sipState.registered ? 'SIP verbunden' : sipState.registering ? 'SIP verbindet...' : sipState.error || 'SIP nicht verbunden'}
+            >
+              <Phone size={13} className={
+                sipState.registered ? 'text-green-400' :
+                sipState.registering ? 'text-amber-400 animate-pulse' :
+                'text-red-400'
+              } />
+            </div>
+          )}
 
           <span className="w-px h-4 bg-white/15 mx-0.5 hidden sm:block" />
 

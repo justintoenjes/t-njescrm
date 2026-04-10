@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Save, Phone, Mail, User, ArrowRightLeft, KeyRound } from 'lucide-react';
+import { Save, Phone, Mail, User, ArrowRightLeft, KeyRound, Wifi, WifiOff } from 'lucide-react';
 import Header from '@/components/Header';
+import { useSip } from '@/components/SipProvider';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -25,6 +26,12 @@ export default function SettingsPage() {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState('');
   const [pwError, setPwError] = useState(false);
+  const [sipUsername, setSipUsername] = useState('');
+  const [sipPassword, setSipPassword] = useState('');
+  const [sipSaving, setSipSaving] = useState(false);
+  const [sipSaved, setSipSaved] = useState(false);
+  const [hasSipPassword, setHasSipPassword] = useState(false);
+  const { state: sipState } = useSip();
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/login');
@@ -37,6 +44,8 @@ export default function SettingsPage() {
       if (data.dialMethod) setDialMethod(data.dialMethod);
       if (data.emailSignature !== undefined) setEmailSignature(data.emailSignature);
       if (data.hasPassword !== undefined) setHasPassword(data.hasPassword);
+      if (data.sipUsername) setSipUsername(data.sipUsername);
+      if (data.hasSipPassword) setHasSipPassword(data.hasSipPassword);
     }).catch(() => {});
   }, [status]);
 
@@ -126,11 +135,73 @@ export default function SettingsPage() {
               className={`px-4 py-2 text-sm rounded-lg border transition ${dialMethod === 'fritzbox' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
               Fritz!Box Wählhilfe
             </button>
+            <button onClick={() => saveDialMethod('sip')}
+              className={`px-4 py-2 text-sm rounded-lg border transition ${dialMethod === 'sip' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              Browser SIP
+            </button>
           </div>
           <p className="text-xs text-gray-400">
-            {dialMethod === 'tel' ? 'Öffnet die Telefonie-App auf deinem Gerät (Teams, FaceTime, Softphone).' : 'Die Fritz!Box wählt die Nummer und verbindet mit dem konfigurierten Telefon.'}
+            {dialMethod === 'tel' ? 'Öffnet die Telefonie-App auf deinem Gerät (Teams, FaceTime, Softphone).'
+              : dialMethod === 'fritzbox' ? 'Die Fritz!Box wählt die Nummer und verbindet mit dem konfigurierten Telefon.'
+              : 'Telefoniere direkt über den Browser via SIP (WebRTC).'}
           </p>
           {dialSaved && <span className="text-green-600 text-sm font-medium">✓ Gespeichert</span>}
+
+          {/* SIP Credentials */}
+          {dialMethod === 'sip' && (
+            <div className="border-t border-gray-100 pt-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs">
+                {sipState.registered ? (
+                  <><Wifi size={14} className="text-green-500" /><span className="text-green-600 font-medium">SIP registriert</span></>
+                ) : sipState.registering ? (
+                  <><Wifi size={14} className="text-amber-500 animate-pulse" /><span className="text-amber-600 font-medium">Verbinde...</span></>
+                ) : sipState.error ? (
+                  <><WifiOff size={14} className="text-red-500" /><span className="text-red-500 font-medium">{sipState.error}</span></>
+                ) : (
+                  <><WifiOff size={14} className="text-gray-400" /><span className="text-gray-500">Nicht verbunden</span></>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 font-medium">SIP-Benutzername</label>
+                  <input value={sipUsername} onChange={e => setSipUsername(e.target.value)}
+                    placeholder="z.B. 620"
+                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 font-medium">SIP-Passwort</label>
+                  <input type="password" value={sipPassword} onChange={e => setSipPassword(e.target.value)}
+                    placeholder={hasSipPassword ? '••••••••' : 'Passwort'}
+                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    setSipSaving(true);
+                    const payload: Record<string, string> = { sipUsername };
+                    if (sipPassword) payload.sipPassword = sipPassword;
+                    await fetch('/api/profile', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload),
+                    });
+                    setSipSaving(false);
+                    setSipSaved(true);
+                    if (sipPassword) { setHasSipPassword(true); setSipPassword(''); }
+                    setTimeout(() => setSipSaved(false), 2000);
+                  }}
+                  disabled={sipSaving || !sipUsername}
+                  className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
+                  <Save size={14} /> {sipSaving ? 'Speichern…' : 'SIP speichern'}
+                </button>
+                {sipSaved && <span className="text-green-600 text-sm font-medium">✓ Gespeichert</span>}
+              </div>
+              <p className="text-xs text-gray-400">
+                Erstelle in der Fritz!Box unter Telefonie &gt; Telefoniegeräte ein neues IP-Telefon und trage die Zugangsdaten hier ein.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Email Signature */}
