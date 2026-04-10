@@ -126,10 +126,10 @@ function parseLine(line) {
   const timestamp = new Date(`20${match[3]}-${match[2]}-${match[1]}T${match[4]}:${match[5]}:${match[6]}`);
 
   if (type === 'RING') {
-    // Incoming: ext, externalCaller, ownNumber
-    const [ext, externalCaller, ownNumber] = rest;
-    activeCalls.set(connId, { direction: 'incoming', externalNumber: externalCaller, ownNumber, extension: ext });
-    return { type: 'ring', timestamp, connectionId: connId, direction: 'incoming', externalNumber: externalCaller, ownNumber, extension: ext };
+    // RING format: date;RING;connId;callerNumber;calledNumber;SIP
+    const [callerNumber, calledNumber, sipLine] = rest;
+    activeCalls.set(connId, { direction: 'incoming', externalNumber: callerNumber, ownNumber: calledNumber, extension: sipLine });
+    return { type: 'ring', timestamp, connectionId: connId, direction: 'incoming', externalNumber: callerNumber, ownNumber: calledNumber, extension: sipLine };
   }
   if (type === 'CALL') {
     // Outgoing: ext, ownNumber, externalCalled, SIP
