@@ -72,6 +72,7 @@ model Lead {
   tasks            Task[]
   attachments      Attachment[]
   emails           Email[]
+  callLogs         CallLog[]
 
   @@index([assignedToId])
   @@index([companyId])
@@ -191,6 +192,22 @@ model Email {
   @@unique([graphMessageId, leadId])
   @@index([leadId])
   @@index([receivedAt])
+}
+
+model CallLog {
+  id             String   @id @default(cuid())
+  direction      String   // "incoming" | "outgoing"
+  externalNumber String
+  duration       Int      @default(0) // seconds
+  answered       Boolean  @default(false)
+  seen           Boolean  @default(false)
+  timestamp      DateTime @default(now())
+  leadId         String?
+  lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp])
+  @@index([leadId])
+  @@index([answered])
 }
 
 model GlobalConfig {

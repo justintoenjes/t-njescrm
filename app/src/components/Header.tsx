@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { useState, useRef, useEffect } from 'react';
-import { Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3, Plus, Search } from 'lucide-react';
+import { Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3, Plus, Search, Phone } from 'lucide-react';
 import { useCategory } from '@/lib/category-context';
 import GlobalSearch from '@/components/GlobalSearch';
 import type { LucideIcon } from 'lucide-react';
@@ -15,6 +15,7 @@ type NavItem = { href: string; label: string; icon: LucideIcon; vertriebOnly?: b
 const NAV_ITEMS: NavItem[] = [
   { href: '/pipeline',   label: 'Pipeline',  icon: Kanban },
   { href: '/tasks',      label: 'Aufgaben',  icon: CheckSquare },
+  { href: '/calls',      label: 'Anrufe',    icon: Phone },
   { href: '/companies',  label: 'Firmen',    icon: Building2,   vertriebOnly: true },
   { href: '/templates',  label: 'Stellen',   icon: Package,     recruitingOnly: true },
 ];
@@ -22,10 +23,25 @@ const NAV_ITEMS: NavItem[] = [
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { category, setCategory } = useCategory();
   const [createOpen, setCreateOpen] = useState(false);
   const createRef = useRef<HTMLDivElement>(null);
+  const [missedCount, setMissedCount] = useState(0);
+
+  // Fetch unseen missed call count
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    function fetchCount() {
+      fetch('/api/calls/unseen').then(r => r.json()).then(d => setMissedCount(d.count)).catch(() => {});
+    }
+    fetchCount();
+    const iv = setInterval(fetchCount, 60_000);
+    // Listen for calls-seen event from calls page
+    function onSeen() { setMissedCount(0); }
+    window.addEventListener('calls-seen', onSeen);
+    return () => { clearInterval(iv); window.removeEventListener('calls-seen', onSeen); };
+  }, [status]);
 
   useEffect(() => {
     if (!createOpen) return;
@@ -82,7 +98,7 @@ export default function Header() {
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap
+                className={`relative flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap
                   ${active
                     ? 'bg-tc-blue/20 text-tc-blue'
                     : 'text-white/60 hover:bg-white/10 hover:text-white/90'
@@ -90,6 +106,11 @@ export default function Header() {
               >
                 <Icon size={15} />
                 <span className="hidden md:inline">{label}</span>
+                {href === '/calls' && missedCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center leading-none">
+                    {missedCount > 9 ? '9+' : missedCount}
+                  </span>
+                )}
               </Link>
             );
           })}

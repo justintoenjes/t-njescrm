@@ -103,13 +103,28 @@ async function handleEvent(event: CallEvent) {
 
   // Auto-log based on event type
   if (event.type === 'disconnect' && event.duration !== undefined) {
+    const answered = event.duration > 0;
+
+    // Write to CallLog (all calls, including unknown numbers)
+    await prisma.callLog.create({
+      data: {
+        direction: event.direction,
+        externalNumber,
+        duration: event.duration,
+        answered,
+        seen: answered, // answered calls are auto-seen
+        timestamp: event.timestamp,
+        leadId: lead?.id ?? null,
+      },
+    });
+
     if (lead) {
       const durationMin = Math.floor(event.duration / 60);
       const durationSec = event.duration % 60;
       const durationStr = event.duration > 0 ? `${durationMin}:${String(durationSec).padStart(2, '0')} min` : '';
       const dirLabel = event.direction === 'incoming' ? 'Eingehender' : 'Ausgehender';
 
-      if (event.duration > 0) {
+      if (answered) {
         // Connected call — create note + update lastContactedAt
         await prisma.$transaction([
           prisma.note.create({

@@ -163,17 +163,27 @@ async function handleEvent(event) {
   console.log(`[Call] ${event.type} ${event.direction} ${event.externalNumber} ${lead ? `-> ${lead.name}` : '(unbekannt)'}`);
   broadcast(event);
 
-  if (event.type === 'disconnect' && lead) {
-    const dirLabel = event.direction === 'incoming' ? 'Eingehender' : 'Ausgehender';
-    if (event.duration > 0) {
-      const min = Math.floor(event.duration / 60);
-      const sec = String(event.duration % 60).padStart(2, '0');
-      await createNote(lead.id, `${dirLabel} Anruf (${min}:${sec} min) mit ${event.externalNumber}`);
-      await updateLeadContact(lead.id);
-      console.log(`[Call] Logged: ${lead.name}, ${min}:${sec} min`);
-    } else {
-      await incrementMissed(lead.id);
-      console.log(`[Call] Missed: ${lead.name}`);
+  if (event.type === 'disconnect') {
+    const answered = event.duration > 0;
+
+    // Write to CallLog (all calls, including unknown numbers)
+    await db.query(
+      `INSERT INTO "CallLog" (id, direction, "externalNumber", duration, answered, seen, timestamp, "leadId") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [cuid(), event.direction, event.externalNumber, event.duration, answered, answered, new Date(), lead?.id ?? null]
+    );
+
+    if (lead) {
+      const dirLabel = event.direction === 'incoming' ? 'Eingehender' : 'Ausgehender';
+      if (answered) {
+        const min = Math.floor(event.duration / 60);
+        const sec = String(event.duration % 60).padStart(2, '0');
+        await createNote(lead.id, `${dirLabel} Anruf (${min}:${sec} min) mit ${event.externalNumber}`);
+        await updateLeadContact(lead.id);
+        console.log(`[Call] Logged: ${lead.name}, ${min}:${sec} min`);
+      } else {
+        await incrementMissed(lead.id);
+        console.log(`[Call] Missed: ${lead.name}`);
+      }
     }
   }
 }
