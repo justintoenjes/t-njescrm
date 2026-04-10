@@ -88,23 +88,42 @@ export default function CallPopup() {
     return () => { es?.close(); clearTimeout(retryTimer); };
   }, [status]);
 
-  // Lead lookup for SIP calls
+  // Lead lookup for SIP calls — use SSE event's leadName if available, otherwise fetch
   const [sipLeadName, setSipLeadName] = useState<string | null>(null);
+  const sipActive = sipEnabled && sip.callState !== 'idle';
+
+  // Pick up lead name from SSE callmonitor event (it has server-side lead matching)
   useEffect(() => {
-    if (!sip.remoteNumber || sip.callState === 'idle') { setSipLeadName(null); return; }
-    fetch(`/api/search?q=${encodeURIComponent(sip.remoteNumber)}&limit=1`)
+    if (!sipActive || !call?.leadName) return;
+    const sipNum = sip.remoteNumber ? normalizeNumber(sip.remoteNumber) : null;
+    const sseNum = call.externalNumber ? normalizeNumber(call.externalNumber) : null;
+    if (sipNum && sseNum && (sipNum.endsWith(sseNum) || sseNum.endsWith(sipNum))) {
+      setSipLeadName(call.leadName);
+    }
+  }, [sipActive, sip.remoteNumber, call?.leadName, call?.externalNumber]);
+
+  // Fallback: fetch lead name if SSE didn't provide one
+  useEffect(() => {
+    if (!sip.remoteNumber || sip.callState === 'idle' || sipLeadName) return;
+    const num = sip.remoteNumber;
+    fetch(`/api/leads?phone=${encodeURIComponent(num)}&limit=1`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data?.results?.length > 0) {
-          const r = data.results[0];
-          setSipLeadName(r.name || r.firstName || null);
+        if (data?.length > 0) {
+          const l = data[0];
+          const name = [l.lastName, l.firstName].filter(Boolean).join(', ');
+          if (name) setSipLeadName(name);
         }
       })
       .catch(() => {});
-  }, [sip.remoteNumber, sip.callState]);
+  }, [sip.remoteNumber, sip.callState, sipLeadName]);
 
-  // Determine if SIP is handling the current call (deduplicate)
-  const sipActive = sipEnabled && sip.callState !== 'idle';
+  // Reset lead name when call ends
+  useEffect(() => {
+    if (sip.callState === 'idle') setSipLeadName(null);
+  }, [sip.callState]);
+
+  // Deduplicate
   const sipNumber = sip.remoteNumber ? normalizeNumber(sip.remoteNumber) : null;
   const sseNumber = call?.externalNumber ? normalizeNumber(call.externalNumber) : null;
   const sipHandlingThisCall = sipActive && sipNumber && sseNumber && (sipNumber === sseNumber || sipNumber.endsWith(sseNumber) || sseNumber.endsWith(sipNumber));
@@ -114,12 +133,13 @@ export default function CallPopup() {
     const isRinging = sip.callState === 'ringing';
     const isConnected = sip.callState === 'connected';
     const isCalling = sip.callState === 'calling';
+    const displayName = sipLeadName || sip.remoteNumber || 'Unbekannt';
 
     return (
       <div className="fixed bottom-6 right-6 z-[300]">
         <div className={`rounded-2xl shadow-2xl border p-4 min-w-[280px] ${
           isConnected ? 'bg-green-50 border-green-200' :
-          isRinging && sip.callDirection === 'incoming' ? 'bg-tc-blue/10 border-tc-blue/30' :
+          isRinging && sip.callDirection === 'incoming' ? 'bg-white border-tc-blue shadow-tc-blue/20' :
           'bg-amber-50 border-amber-200'
         }`}>
           <div className="flex items-start justify-between gap-3">
@@ -139,7 +159,7 @@ export default function CallPopup() {
                    isRinging && sip.callDirection === 'incoming' ? 'Eingehender Anruf' :
                    isCalling ? 'Wählt...' : 'Anruf'}
                 </p>
-                <p className="text-sm font-semibold text-gray-900">{sipLeadName || sip.remoteNumber || 'Unbekannt'}</p>
+                <p className="text-sm font-semibold text-gray-900">{displayName}</p>
                 {sipLeadName && sip.remoteNumber && (
                   <p className="text-xs text-gray-400">{sip.remoteNumber}</p>
                 )}
@@ -155,12 +175,12 @@ export default function CallPopup() {
             {/* Incoming: Answer + Reject */}
             {isRinging && sip.callDirection === 'incoming' && (
               <>
-                <button onClick={sipActions.answer}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium py-2 rounded-lg transition">
+                <button onClick={() => { console.log('[SIP] Answer clicked'); sipActions.answer(); }}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium py-2.5 rounded-lg transition">
                   <Phone size={14} /> Annehmen
                 </button>
-                <button onClick={sipActions.hangup}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 rounded-lg transition">
+                <button onClick={() => { console.log('[SIP] Reject clicked'); sipActions.hangup(); }}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2.5 rounded-lg transition">
                   <PhoneOff size={14} /> Ablehnen
                 </button>
               </>

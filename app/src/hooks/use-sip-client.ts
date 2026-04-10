@@ -43,12 +43,52 @@ function extractNumber(uri: string): string {
   return match?.[1] ?? uri;
 }
 
+// Ring sound using Web Audio API
+function createRinger() {
+  let ctx: AudioContext | null = null;
+  let osc: OscillatorNode | null = null;
+  let gain: GainNode | null = null;
+  let interval: NodeJS.Timeout | null = null;
+
+  return {
+    start() {
+      try {
+        ctx = new AudioContext();
+        gain = ctx.createGain();
+        gain.connect(ctx.destination);
+        gain.gain.value = 0;
+
+        osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = 440;
+        osc.connect(gain);
+        osc.start();
+
+        // Ring pattern: 1s on, 2s off
+        let on = true;
+        gain.gain.value = 0.3;
+        interval = setInterval(() => {
+          on = !on;
+          if (gain) gain.gain.value = on ? 0.3 : 0;
+        }, on ? 1000 : 2000);
+      } catch {}
+    },
+    stop() {
+      if (interval) clearInterval(interval);
+      if (osc) try { osc.stop(); } catch {}
+      if (ctx) try { ctx.close(); } catch {}
+      osc = null; gain = null; ctx = null; interval = null;
+    },
+  };
+}
+
 export function useSipClient(enabled: boolean) {
   const [state, setState] = useState<SipState>(initialState);
   const uaRef = useRef<UserAgent | null>(null);
   const registererRef = useRef<Registerer | null>(null);
   const sessionRef = useRef<Session | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ringerRef = useRef<ReturnType<typeof createRinger> | null>(null);
 
   // Create/get audio element
   useEffect(() => {
@@ -111,14 +151,19 @@ export function useSipClient(enabled: boolean) {
       switch (newState) {
         case SessionState.Establishing:
           setupSessionMedia(session);
-          setState(s => ({ ...s, callState: 'calling', callDirection: direction }));
+          // For incoming calls, keep 'ringing' state until established
+          if (direction === 'outgoing') {
+            setState(s => ({ ...s, callState: 'calling', callDirection: direction }));
+          }
           break;
         case SessionState.Established:
           setupSessionMedia(session);
+          ringerRef.current?.stop();
           setState(s => ({ ...s, callState: 'connected', callStart: Date.now() }));
           break;
         case SessionState.Terminated:
           sessionRef.current = null;
+          ringerRef.current?.stop();
           setState(s => ({ ...s, callState: 'idle', callDirection: null, remoteNumber: null, muted: false, onHold: false, callStart: null }));
           break;
       }
@@ -175,8 +220,12 @@ export function useSipClient(enabled: boolean) {
         ua.delegate = {
           onInvite(invitation: Invitation) {
             const remote = extractNumber(invitation.remoteIdentity.uri.toString());
+            console.log('[SIP] Incoming call from:', remote);
             setState(s => ({ ...s, callState: 'ringing', callDirection: 'incoming', remoteNumber: remote }));
             bindSession(invitation, 'incoming');
+            // Start ring sound
+            ringerRef.current = createRinger();
+            ringerRef.current.start();
           },
         };
 
