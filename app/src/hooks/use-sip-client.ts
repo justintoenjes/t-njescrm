@@ -54,8 +54,13 @@ function patchRtcGlobal() {
     desc: RTCSessionDescriptionInit
   ): Promise<void> {
     if (desc.sdp) {
+      console.log('[SIP] setRemoteDescription intercepted, SDP length:', desc.sdp.length);
+      console.log('[SIP] Raw SDP:\n', desc.sdp);
       const cleaned = deduplicateSdpPayloads(desc.sdp);
-      if (cleaned !== desc.sdp) console.log('[SIP] Cleaned remote SDP duplicates');
+      if (cleaned !== desc.sdp) {
+        console.log('[SIP] Cleaned remote SDP duplicates');
+        console.log('[SIP] Cleaned SDP:\n', cleaned);
+      }
       desc = { ...desc, sdp: cleaned };
     }
     // @ts-expect-error Legacy callback overload in TS WebRTC types
@@ -80,7 +85,9 @@ function patchRtcGlobal() {
 
 // Remove duplicate payload type entries from SDP (rtpengine bug)
 function deduplicateSdpPayloads(sdp: string): string {
-  const lines = sdp.split('\r\n');
+  // Handle both \r\n and \n line endings
+  const sep = sdp.includes('\r\n') ? '\r\n' : '\n';
+  const lines = sdp.split(sep);
   const result: string[] = [];
   const seenRtpmap = new Set<string>();
   const seenFmtp = new Set<string>();
@@ -114,7 +121,7 @@ function deduplicateSdpPayloads(sdp: string): string {
     }
     result.push(line);
   }
-  return result.join('\r\n');
+  return result.join(sep);
 }
 
 function extractNumber(uri: string): string {
