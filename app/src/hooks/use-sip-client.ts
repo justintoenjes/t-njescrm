@@ -41,34 +41,80 @@ const initialState: SipState = {
 // Patch RTCPeerConnection globally to clean SDP from rtpengine
 let _rtcPatched = false;
 function patchRtcGlobal() {
-  if (_rtcPatched || typeof RTCPeerConnection === 'undefined') return;
+  console.log('[SIP] patchRtcGlobal called, RTCPeerConnection exists:', typeof RTCPeerConnection !== 'undefined', 'already patched:', _rtcPatched);
+  if (_rtcPatched) return;
+  if (typeof RTCPeerConnection === 'undefined') { console.warn('[SIP] RTCPeerConnection not available'); return; }
   _rtcPatched = true;
+
   const origSetRemote = RTCPeerConnection.prototype.setRemoteDescription;
+  const origSetLocal = RTCPeerConnection.prototype.setLocalDescription;
+
   RTCPeerConnection.prototype.setRemoteDescription = function(
     this: RTCPeerConnection,
     desc: RTCSessionDescriptionInit
   ): Promise<void> {
     if (desc.sdp) {
-      desc = { ...desc, sdp: deduplicateSdpPayloads(desc.sdp) };
+      const cleaned = deduplicateSdpPayloads(desc.sdp);
+      if (cleaned !== desc.sdp) console.log('[SIP] Cleaned remote SDP duplicates');
+      desc = { ...desc, sdp: cleaned };
     }
     // @ts-expect-error Legacy callback overload in TS WebRTC types
     return origSetRemote.call(this, desc);
   };
-  console.log('[SIP] Patched RTCPeerConnection.setRemoteDescription for SDP cleanup');
+
+  RTCPeerConnection.prototype.setLocalDescription = function(
+    this: RTCPeerConnection,
+    desc?: RTCLocalSessionDescriptionInit
+  ): Promise<void> {
+    if (desc?.sdp) {
+      const cleaned = deduplicateSdpPayloads(desc.sdp);
+      if (cleaned !== desc.sdp) console.log('[SIP] Cleaned local SDP duplicates');
+      desc = { ...desc, sdp: cleaned };
+    }
+    // @ts-expect-error Legacy callback overload in TS WebRTC types
+    return origSetLocal.call(this, desc);
+  };
+
+  console.log('[SIP] Patched RTCPeerConnection.setRemoteDescription + setLocalDescription');
 }
 
 // Remove duplicate payload type entries from SDP (rtpengine bug)
 function deduplicateSdpPayloads(sdp: string): string {
-  return sdp.split('\r\n').reduce((lines: string[], line) => {
-    // Deduplicate a=rtpmap and a=fmtp lines by payload type
-    if (line.startsWith('a=rtpmap:') || line.startsWith('a=fmtp:')) {
-      const pt = line.split(':')[1]?.split(' ')[0];
-      const prefix = line.split(':')[0] + ':' + pt;
-      if (lines.some(l => l.startsWith(prefix))) return lines; // skip duplicate
+  const lines = sdp.split('\r\n');
+  const result: string[] = [];
+  const seenRtpmap = new Set<string>();
+  const seenFmtp = new Set<string>();
+
+  for (const line of lines) {
+    // Deduplicate payload types in m= line
+    if (line.startsWith('m=')) {
+      const parts = line.split(' ');
+      // m=audio PORT PROTO PT1 PT2 PT3...
+      if (parts.length > 3) {
+        const seen = new Set<string>();
+        const deduped = parts.slice(0, 3);
+        for (const pt of parts.slice(3)) {
+          if (!seen.has(pt)) { seen.add(pt); deduped.push(pt); }
+        }
+        result.push(deduped.join(' '));
+        continue;
+      }
     }
-    lines.push(line);
-    return lines;
-  }, []).join('\r\n');
+    // Deduplicate a=rtpmap lines by payload type
+    if (line.startsWith('a=rtpmap:')) {
+      const pt = line.substring(9).split(' ')[0];
+      if (seenRtpmap.has(pt)) continue;
+      seenRtpmap.add(pt);
+    }
+    // Deduplicate a=fmtp lines by payload type
+    if (line.startsWith('a=fmtp:')) {
+      const pt = line.substring(7).split(' ')[0];
+      if (seenFmtp.has(pt)) continue;
+      seenFmtp.add(pt);
+    }
+    result.push(line);
+  }
+  return result.join('\r\n');
 }
 
 function extractNumber(uri: string): string {
