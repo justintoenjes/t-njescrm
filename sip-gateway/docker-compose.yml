@@ -16,6 +16,7 @@ services:
     network_mode: host
     volumes:
       - ./ssl:/etc/ssl/kamailio
+      - ./kamailio.cfg:/etc/kamailio/kamailio.cfg:ro
     environment:
       # Server's own IP address on the local network
       - MY_IP=192.168.178.162

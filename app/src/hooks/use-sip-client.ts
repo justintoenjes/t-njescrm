@@ -69,14 +69,38 @@ export function useSipClient(enabled: boolean) {
 
   // Setup media on session
   const setupSessionMedia = useCallback((session: Session) => {
-    const pc = (session.sessionDescriptionHandler as { peerConnection?: RTCPeerConnection })?.peerConnection;
-    if (!pc || !audioRef.current) return;
+    const setupPc = () => {
+      const pc = (session.sessionDescriptionHandler as { peerConnection?: RTCPeerConnection })?.peerConnection;
+      if (!pc || !audioRef.current) {
+        console.warn('[SIP] No peerConnection or audio element yet');
+        return;
+      }
+      console.log('[SIP] Setting up ontrack handler');
 
-    pc.ontrack = (event) => {
-      if (audioRef.current && event.streams[0]) {
-        audioRef.current.srcObject = event.streams[0];
+      const audio = audioRef.current;
+      pc.ontrack = (event) => {
+        console.log('[SIP] ontrack fired, streams:', event.streams.length);
+        if (audio && event.streams[0]) {
+          audio.srcObject = event.streams[0];
+          audio.play().catch(e => console.warn('[SIP] audio.play() blocked:', e));
+        }
+      };
+
+      // Also check if tracks are already there
+      const receivers = pc.getReceivers();
+      if (receivers.length > 0) {
+        const stream = new MediaStream(receivers.map(r => r.track).filter(Boolean));
+        if (stream.getTracks().length > 0) {
+          console.log('[SIP] Attaching existing tracks:', stream.getTracks().length);
+          audio.srcObject = stream;
+          audio.play().catch(e => console.warn('[SIP] audio.play() blocked:', e));
+        }
       }
     };
+
+    // Try immediately and also after a short delay (SDH might not be ready yet)
+    setupPc();
+    setTimeout(setupPc, 500);
   }, []);
 
   // Handle session state changes
@@ -86,6 +110,7 @@ export function useSipClient(enabled: boolean) {
     session.stateChange.addListener((newState) => {
       switch (newState) {
         case SessionState.Establishing:
+          setupSessionMedia(session);
           setState(s => ({ ...s, callState: 'calling', callDirection: direction }));
           break;
         case SessionState.Established:

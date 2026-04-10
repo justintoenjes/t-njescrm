@@ -156,7 +156,7 @@ fi
 
 if [ "$SIP_GW_CHANGED" = true ]; then
   echo "==> Restarting SIP gateway..."
-  run_remote "podman stop webrtc-sip-gw 2>/dev/null; podman rm webrtc-sip-gw 2>/dev/null; podman run -d --name webrtc-sip-gw --network=host --restart=always --security-opt label=disable -e MY_IP=192.168.178.162 -e MY_DOMAIN=microcrm -e WS_PORT=8080 -e WSS_PORT=8443 -e TLS_DISABLE=true ghcr.io/florian-h05/webrtc-sip-gw"
+  run_remote "podman stop webrtc-sip-gw 2>/dev/null; podman rm webrtc-sip-gw 2>/dev/null; podman run -d --name webrtc-sip-gw --network=host --restart=always --security-opt label=disable -v /home/$REMOTE_USER/sip-gateway/kamailio.cfg:/etc/kamailio/kamailio.cfg:ro -e MY_IP=192.168.178.162 -e MY_DOMAIN=microcrm -e WS_PORT=8080 -e WSS_PORT=8443 -e TLS_DISABLE=true ghcr.io/florian-h05/webrtc-sip-gw"
   deploy_timer "restart sip-gw"
 fi
 
