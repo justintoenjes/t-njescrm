@@ -43,41 +43,57 @@ function extractNumber(uri: string): string {
   return match?.[1] ?? uri;
 }
 
-// Ring sound using Web Audio API
+// Ring sound: German-style phone ring (two short bursts, then pause)
 function createRinger() {
   let ctx: AudioContext | null = null;
-  let osc: OscillatorNode | null = null;
-  let gain: GainNode | null = null;
-  let interval: NodeJS.Timeout | null = null;
+  let timeout: NodeJS.Timeout | null = null;
+  let stopped = false;
+
+  function playBurst(audioCtx: AudioContext) {
+    if (stopped) return;
+    const gain = audioCtx.createGain();
+    gain.connect(audioCtx.destination);
+
+    // Two oscillators for richer ring sound
+    const osc1 = audioCtx.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.value = 425; // German standard ring frequency
+    osc1.connect(gain);
+
+    const osc2 = audioCtx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.value = 450;
+    osc2.connect(gain);
+
+    const now = audioCtx.currentTime;
+    // Double burst: 0.4s on, 0.2s off, 0.4s on, then 3s pause
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.setValueAtTime(0, now + 0.4);
+    gain.gain.setValueAtTime(0.25, now + 0.6);
+    gain.gain.setValueAtTime(0, now + 1.0);
+
+    osc1.start(now);
+    osc1.stop(now + 1.0);
+    osc2.start(now);
+    osc2.stop(now + 1.0);
+
+    // Schedule next burst
+    timeout = setTimeout(() => playBurst(audioCtx), 4000);
+  }
 
   return {
     start() {
       try {
+        stopped = false;
         ctx = new AudioContext();
-        gain = ctx.createGain();
-        gain.connect(ctx.destination);
-        gain.gain.value = 0;
-
-        osc = ctx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.value = 440;
-        osc.connect(gain);
-        osc.start();
-
-        // Ring pattern: 1s on, 2s off
-        let on = true;
-        gain.gain.value = 0.3;
-        interval = setInterval(() => {
-          on = !on;
-          if (gain) gain.gain.value = on ? 0.3 : 0;
-        }, on ? 1000 : 2000);
+        playBurst(ctx);
       } catch {}
     },
     stop() {
-      if (interval) clearInterval(interval);
-      if (osc) try { osc.stop(); } catch {}
+      stopped = true;
+      if (timeout) clearTimeout(timeout);
       if (ctx) try { ctx.close(); } catch {}
-      osc = null; gain = null; ctx = null; interval = null;
+      ctx = null; timeout = null;
     },
   };
 }
@@ -305,8 +321,20 @@ export function useSipClient(enabled: boolean) {
 
   const answer = useCallback(() => {
     const session = sessionRef.current;
-    if (!session || state.callState !== 'ringing' || state.callDirection !== 'incoming') return;
-    (session as Invitation).accept();
+    if (!session || state.callState !== 'ringing' || state.callDirection !== 'incoming') {
+      console.warn('[SIP] Cannot answer: no session or wrong state', state.callState, state.callDirection);
+      return;
+    }
+    console.log('[SIP] Accepting invitation...');
+    (session as Invitation).accept({
+      sessionDescriptionHandlerOptions: {
+        constraints: { audio: true, video: false },
+      },
+    }).then(() => {
+      console.log('[SIP] accept() resolved');
+    }).catch((err: unknown) => {
+      console.error('[SIP] accept() failed:', err);
+    });
   }, [state.callState, state.callDirection]);
 
   const hangup = useCallback(() => {

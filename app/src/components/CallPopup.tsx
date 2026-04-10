@@ -95,7 +95,10 @@ export default function CallPopup() {
   useEffect(() => {
     if (!sip.remoteNumber || sip.callState === 'idle') { setSipLeadName(null); return; }
     const num = sip.remoteNumber;
-    fetch(`/api/search?q=${encodeURIComponent(num)}`)
+    // Normalize number: convert leading 0 to +49 for CRM lookup
+    let searchNum = num.replace(/[\s\-()]/g, '');
+    if (searchNum.startsWith('0')) searchNum = '+49' + searchNum.slice(1);
+    fetch(`/api/search?q=${encodeURIComponent(searchNum)}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.leads?.length) return;
