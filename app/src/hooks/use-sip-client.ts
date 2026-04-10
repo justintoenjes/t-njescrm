@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Inviter, Registerer, SessionState, UserAgent } from 'sip.js';
+import { Inviter, Registerer, RegistererState, SessionState, UserAgent } from 'sip.js';
 import type { Invitation, Session } from 'sip.js';
 
 export type SipState = {
@@ -165,9 +165,9 @@ export function useSipClient(enabled: boolean) {
         registerer.stateChange.addListener((newState) => {
           setState(s => ({
             ...s,
-            registered: newState === 'Registered',
+            registered: newState === RegistererState.Registered,
             registering: false,
-            error: newState === 'Unregistered' ? null : s.error,
+            error: newState === RegistererState.Unregistered ? null : s.error,
           }));
         });
 
