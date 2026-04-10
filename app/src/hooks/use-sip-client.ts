@@ -94,42 +94,45 @@ function extractNumber(uri: string): string {
   return match?.[1] ?? uri;
 }
 
-// Ring sound: German-style phone ring (two short bursts, then pause)
+// Ring melody: short repeating jingle
 function createRinger() {
   let ctx: AudioContext | null = null;
   let timeout: NodeJS.Timeout | null = null;
   let stopped = false;
 
-  function playBurst(audioCtx: AudioContext) {
+  // Notes: frequency in Hz, duration in seconds
+  const melody: [number, number][] = [
+    [659, 0.15], // E5
+    [784, 0.15], // G5
+    [988, 0.15], // B5
+    [1047, 0.3], // C6
+    [988, 0.15], // B5
+    [784, 0.3],  // G5
+  ];
+
+  function playMelody(audioCtx: AudioContext) {
     if (stopped) return;
-    const gain = audioCtx.createGain();
-    gain.connect(audioCtx.destination);
 
-    // Two oscillators for richer ring sound
-    const osc1 = audioCtx.createOscillator();
-    osc1.type = 'sine';
-    osc1.frequency.value = 425; // German standard ring frequency
-    osc1.connect(gain);
+    let t = audioCtx.currentTime;
+    for (const [freq, dur] of melody) {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
 
-    const osc2 = audioCtx.createOscillator();
-    osc2.type = 'sine';
-    osc2.frequency.value = 450;
-    osc2.connect(gain);
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.15, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + dur);
 
-    const now = audioCtx.currentTime;
-    // Double burst: 0.4s on, 0.2s off, 0.4s on, then 3s pause
-    gain.gain.setValueAtTime(0.25, now);
-    gain.gain.setValueAtTime(0, now + 0.4);
-    gain.gain.setValueAtTime(0.25, now + 0.6);
-    gain.gain.setValueAtTime(0, now + 1.0);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + dur);
+      t += dur;
+    }
 
-    osc1.start(now);
-    osc1.stop(now + 1.0);
-    osc2.start(now);
-    osc2.stop(now + 1.0);
-
-    // Schedule next burst
-    timeout = setTimeout(() => playBurst(audioCtx), 4000);
+    // Repeat after pause
+    const totalDur = melody.reduce((s, [, d]) => s + d, 0);
+    timeout = setTimeout(() => playMelody(audioCtx), (totalDur + 2.5) * 1000);
   }
 
   return {
@@ -137,7 +140,7 @@ function createRinger() {
       try {
         stopped = false;
         ctx = new AudioContext();
-        playBurst(ctx);
+        playMelody(ctx);
       } catch {}
     },
     stop() {
