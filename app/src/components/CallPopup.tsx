@@ -109,10 +109,8 @@ export default function CallPopup() {
       .catch(() => {});
   }, [sip.remoteNumber, sip.callState]);
 
-  // Deduplicate
-  const sipNumber = sip.remoteNumber ? normalizeNumber(sip.remoteNumber) : null;
-  const sseNumber = call?.externalNumber ? normalizeNumber(call.externalNumber) : null;
-  const sipHandlingThisCall = sipActive && sipNumber && sseNumber && (sipNumber === sseNumber || sipNumber.endsWith(sseNumber) || sseNumber.endsWith(sipNumber));
+  // When SIP is active, suppress SSE popup entirely (it shows wrong number for SIP calls)
+  const sipHandlingThisCall = sipActive;
 
   // SIP call popup
   if (sipActive) {

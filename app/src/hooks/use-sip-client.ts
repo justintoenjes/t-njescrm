@@ -38,6 +38,25 @@ const initialState: SipState = {
   callStart: null,
 };
 
+// Patch RTCPeerConnection globally to clean SDP from rtpengine
+let _rtcPatched = false;
+function patchRtcGlobal() {
+  if (_rtcPatched || typeof RTCPeerConnection === 'undefined') return;
+  _rtcPatched = true;
+  const origSetRemote = RTCPeerConnection.prototype.setRemoteDescription;
+  RTCPeerConnection.prototype.setRemoteDescription = function(
+    this: RTCPeerConnection,
+    desc: RTCSessionDescriptionInit
+  ): Promise<void> {
+    if (desc.sdp) {
+      desc = { ...desc, sdp: deduplicateSdpPayloads(desc.sdp) };
+    }
+    // @ts-expect-error Legacy callback overload in TS WebRTC types
+    return origSetRemote.call(this, desc);
+  };
+  console.log('[SIP] Patched RTCPeerConnection.setRemoteDescription for SDP cleanup');
+}
+
 // Remove duplicate payload type entries from SDP (rtpengine bug)
 function deduplicateSdpPayloads(sdp: string): string {
   return sdp.split('\r\n').reduce((lines: string[], line) => {
@@ -119,6 +138,11 @@ export function useSipClient(enabled: boolean) {
   const sessionRef = useRef<Session | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ringerRef = useRef<ReturnType<typeof createRinger> | null>(null);
+
+  // Patch RTCPeerConnection for SDP cleanup
+  useEffect(() => {
+    if (enabled) patchRtcGlobal();
+  }, [enabled]);
 
   // Create/get audio element
   useEffect(() => {
@@ -341,14 +365,6 @@ export function useSipClient(enabled: boolean) {
     }
     console.log('[SIP] Accepting invitation...');
     const invitation = session as Invitation;
-
-    // Fix duplicate payload types in incoming SDP from rtpengine
-    // Patch the INVITE body before accept() processes it
-    const origBody = invitation.request?.body;
-    if (origBody && typeof origBody === 'string') {
-      (invitation.request as { body: string }).body = deduplicateSdpPayloads(origBody);
-      console.log('[SIP] Cleaned duplicate SDP payloads from INVITE');
-    }
 
     invitation.accept({
       sessionDescriptionHandlerOptions: {
