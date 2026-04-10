@@ -97,6 +97,7 @@ if [ "$SIP_GW_HASH" != "$OLD_SIP_GW_HASH" ]; then
   SIP_GW_CHANGED=true
   echo "==> Syncing SIP gateway (geändert)..."
   rsync -az --checksum --delete \
+    --exclude='kamailio-config' \
     --rsync-path="sudo -u $REMOTE_USER rsync" \
     -e "$RSYNC_SSH" \
     "$LOCAL_SIP_GATEWAY/" "$REMOTE:/home/$REMOTE_USER/sip-gateway/"
@@ -156,7 +157,13 @@ fi
 
 if [ "$SIP_GW_CHANGED" = true ]; then
   echo "==> Restarting SIP gateway..."
-  run_remote "podman stop webrtc-sip-gw 2>/dev/null; podman rm webrtc-sip-gw 2>/dev/null; podman run -d --name webrtc-sip-gw --network=host --restart=always --security-opt label=disable -v /home/$REMOTE_USER/sip-gateway/kamailio.cfg:/etc/kamailio/kamailio.cfg:ro -e MY_IP=192.168.178.162 -e MY_DOMAIN=microcrm -e WS_PORT=8080 -e WSS_PORT=8443 -e TLS_DISABLE=true ghcr.io/florian-h05/webrtc-sip-gw"
+  # Prepare kamailio-config dir (copy kamailio.cfg + extract missing files from image)
+  run_remote "mkdir -p /home/$REMOTE_USER/sip-gateway/kamailio-config && cp /home/$REMOTE_USER/sip-gateway/kamailio.cfg /home/$REMOTE_USER/sip-gateway/kamailio-config/kamailio.cfg"
+  if ! ssh "$REMOTE" "sudo -u $REMOTE_USER test -f /home/$REMOTE_USER/sip-gateway/kamailio-config/kamctlrc" 2>/dev/null; then
+    echo "  Extracting kamctlrc + tls.cfg from image..."
+    run_remote "podman create --name sip-tmp ghcr.io/florian-h05/webrtc-sip-gw && podman cp sip-tmp:/etc/kamailio/kamctlrc /home/$REMOTE_USER/sip-gateway/kamailio-config/kamctlrc && podman cp sip-tmp:/etc/kamailio/tls.cfg /home/$REMOTE_USER/sip-gateway/kamailio-config/tls.cfg && podman rm sip-tmp"
+  fi
+  run_remote "podman stop webrtc-sip-gw 2>/dev/null; podman rm webrtc-sip-gw 2>/dev/null; podman run -d --name webrtc-sip-gw --network=host --restart=always --security-opt label=disable -v /home/$REMOTE_USER/sip-gateway/kamailio-config/:/etc/kamailio/:rw -e MY_IP=192.168.178.162 -e MY_DOMAIN=microcrm -e WS_PORT=8080 -e WSS_PORT=8443 -e TLS_DISABLE=true ghcr.io/florian-h05/webrtc-sip-gw"
   deploy_timer "restart sip-gw"
 fi
 
