@@ -37,20 +37,23 @@ async function findLeadByPhone(number) {
 
   // Direct match — phones are stored normalized as +49...
   const res = await db.query(
-    `SELECT id, name FROM "Lead" WHERE phone = $1 AND archived = false LIMIT 1`,
+    `SELECT id, "firstName", "lastName" FROM "Lead" WHERE phone = $1 AND archived = false LIMIT 1`,
     [normalized]
   );
-  if (res.rows.length > 0) return { id: res.rows[0].id, name: res.rows[0].name };
+  if (res.rows.length > 0) {
+    const r = res.rows[0];
+    return { id: r.id, name: [r.lastName, r.firstName].filter(Boolean).join(', ') || 'Unbekannt' };
+  }
 
   // Fallback: suffix match for legacy data not yet normalized
   const allRes = await db.query(
-    `SELECT id, name, phone FROM "Lead" WHERE phone IS NOT NULL AND archived = false`
+    `SELECT id, "firstName", "lastName", phone FROM "Lead" WHERE phone IS NOT NULL AND archived = false`
   );
   const normDigits = normalized.replace(/\D/g, '');
   for (const lead of allRes.rows) {
     const leadDigits = lead.phone.replace(/\D/g, '');
     if (leadDigits.endsWith(normDigits) || normDigits.endsWith(leadDigits)) {
-      return { id: lead.id, name: lead.name };
+      return { id: lead.id, name: [lead.lastName, lead.firstName].filter(Boolean).join(', ') || 'Unbekannt' };
     }
   }
   return null;

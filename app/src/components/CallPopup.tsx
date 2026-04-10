@@ -88,6 +88,21 @@ export default function CallPopup() {
     return () => { es?.close(); clearTimeout(retryTimer); };
   }, [status]);
 
+  // Lead lookup for SIP calls
+  const [sipLeadName, setSipLeadName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sip.remoteNumber || sip.callState === 'idle') { setSipLeadName(null); return; }
+    fetch(`/api/search?q=${encodeURIComponent(sip.remoteNumber)}&limit=1`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.results?.length > 0) {
+          const r = data.results[0];
+          setSipLeadName(r.name || r.firstName || null);
+        }
+      })
+      .catch(() => {});
+  }, [sip.remoteNumber, sip.callState]);
+
   // Determine if SIP is handling the current call (deduplicate)
   const sipActive = sipEnabled && sip.callState !== 'idle';
   const sipNumber = sip.remoteNumber ? normalizeNumber(sip.remoteNumber) : null;
@@ -124,7 +139,10 @@ export default function CallPopup() {
                    isRinging && sip.callDirection === 'incoming' ? 'Eingehender Anruf' :
                    isCalling ? 'Wählt...' : 'Anruf'}
                 </p>
-                <p className="text-sm font-semibold text-gray-900">{sip.remoteNumber ?? 'Unbekannt'}</p>
+                <p className="text-sm font-semibold text-gray-900">{sipLeadName || sip.remoteNumber || 'Unbekannt'}</p>
+                {sipLeadName && sip.remoteNumber && (
+                  <p className="text-xs text-gray-400">{sip.remoteNumber}</p>
+                )}
                 {isConnected && sip.callStart && (
                   <p className="text-xs text-gray-400 mt-0.5"><CallDuration startTime={sip.callStart} /></p>
                 )}
