@@ -38,49 +38,14 @@ const initialState: SipState = {
   callStart: null,
 };
 
-// Patch RTCPeerConnection globally to clean SDP from rtpengine
-let _rtcPatched = false;
-function patchRtcGlobal() {
-  console.log('[SIP] patchRtcGlobal called, RTCPeerConnection exists:', typeof RTCPeerConnection !== 'undefined', 'already patched:', _rtcPatched);
-  if (_rtcPatched) return;
-  if (typeof RTCPeerConnection === 'undefined') { console.warn('[SIP] RTCPeerConnection not available'); return; }
-  _rtcPatched = true;
-
-  const origSetRemote = RTCPeerConnection.prototype.setRemoteDescription;
-  const origSetLocal = RTCPeerConnection.prototype.setLocalDescription;
-
-  RTCPeerConnection.prototype.setRemoteDescription = function(
-    this: RTCPeerConnection,
-    desc: RTCSessionDescriptionInit
-  ): Promise<void> {
-    if (desc.sdp) {
-      console.log('[SIP] setRemoteDescription intercepted, SDP length:', desc.sdp.length);
-      console.log('[SIP] Raw SDP:\n', desc.sdp);
-      const cleaned = deduplicateSdpPayloads(desc.sdp);
-      if (cleaned !== desc.sdp) {
-        console.log('[SIP] Cleaned remote SDP duplicates');
-        console.log('[SIP] Cleaned SDP:\n', cleaned);
-      }
-      desc = { ...desc, sdp: cleaned };
-    }
-    // @ts-expect-error Legacy callback overload in TS WebRTC types
-    return origSetRemote.call(this, desc);
-  };
-
-  RTCPeerConnection.prototype.setLocalDescription = function(
-    this: RTCPeerConnection,
-    desc?: RTCLocalSessionDescriptionInit
-  ): Promise<void> {
-    if (desc?.sdp) {
-      const cleaned = deduplicateSdpPayloads(desc.sdp);
-      if (cleaned !== desc.sdp) console.log('[SIP] Cleaned local SDP duplicates');
-      desc = { ...desc, sdp: cleaned };
-    }
-    // @ts-expect-error Legacy callback overload in TS WebRTC types
-    return origSetLocal.call(this, desc);
-  };
-
-  console.log('[SIP] Patched RTCPeerConnection.setRemoteDescription + setLocalDescription');
+// SDP modifier for SIP.js sessionDescriptionHandlerModifiers
+function sdpCleanModifier(description: RTCSessionDescriptionInit): Promise<RTCSessionDescriptionInit> {
+  if (description.sdp) {
+    const cleaned = deduplicateSdpPayloads(description.sdp);
+    if (cleaned !== description.sdp) console.warn('[SIP] Cleaned SDP duplicates via modifier');
+    return Promise.resolve({ ...description, sdp: cleaned });
+  }
+  return Promise.resolve(description);
 }
 
 // Remove duplicate payload type entries from SDP (rtpengine bug)
@@ -292,7 +257,6 @@ export function useSipClient(enabled: boolean) {
 
     async function connect() {
       setState(s => ({ ...s, registering: true, error: null }));
-      patchRtcGlobal();
 
       try {
         const res = await fetch('/api/sip/credentials');
@@ -316,8 +280,10 @@ export function useSipClient(enabled: boolean) {
               iceServers: [], // local network, no STUN/TURN needed
             },
           },
+          // Clean duplicate SDP payloads from rtpengine on all sessions
+          sessionDescriptionHandlerModifiers: [sdpCleanModifier],
           logLevel: 'debug',
-        });
+        } as ConstructorParameters<typeof UserAgent>[0]);
 
         // Handle incoming calls
         ua.delegate = {
@@ -419,6 +385,7 @@ export function useSipClient(enabled: boolean) {
       sessionDescriptionHandlerOptions: {
         constraints: { audio: true, video: false },
       },
+      sessionDescriptionHandlerModifiers: [sdpCleanModifier],
     }).then(() => {
       console.log('[SIP] accept() resolved');
     }).catch((err: unknown) => {
