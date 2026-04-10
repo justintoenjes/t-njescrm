@@ -131,6 +131,9 @@ function createRinger() {
   };
 }
 
+// Apply SDP patch immediately on module load
+if (typeof window !== 'undefined') patchRtcGlobal();
+
 export function useSipClient(enabled: boolean) {
   const [state, setState] = useState<SipState>(initialState);
   const uaRef = useRef<UserAgent | null>(null);
@@ -138,11 +141,6 @@ export function useSipClient(enabled: boolean) {
   const sessionRef = useRef<Session | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ringerRef = useRef<ReturnType<typeof createRinger> | null>(null);
-
-  // Patch RTCPeerConnection for SDP cleanup
-  useEffect(() => {
-    if (enabled) patchRtcGlobal();
-  }, [enabled]);
 
   // Create/get audio element
   useEffect(() => {
