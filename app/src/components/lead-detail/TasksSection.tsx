@@ -1,7 +1,14 @@
 'use client';
 
-import { Plus, Trash, CheckSquare, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash, CheckSquare, AlertCircle, ChevronDown, ChevronRight, Bell } from 'lucide-react';
 import type { UseLeadDetailReturn } from './useLeadDetail';
+
+const REMINDER_OPTIONS = [
+  { value: 0, label: 'Keine' },
+  { value: 15, label: '15 Min' },
+  { value: 60, label: '1 Std' },
+  { value: 1440, label: '1 Tag' },
+];
 
 type Props = {
   state: UseLeadDetailReturn;
@@ -13,6 +20,7 @@ type Props = {
 export default function TasksSection({ state, collapsed, onToggle, onOpenTask }: Props) {
   const {
     tasks, tasksLoaded, newTaskTitle, setNewTaskTitle, newTaskDue, setNewTaskDue,
+    newTaskReminder, setNewTaskReminder,
     addingTask, addTask, toggleTask, deleteTask, showCompleted, setShowCompleted,
   } = state;
 
@@ -43,6 +51,20 @@ export default function TasksSection({ state, collapsed, onToggle, onOpenTask }:
               onChange={(e) => setNewTaskDue(e.target.value)}
               className="border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue w-32 shrink-0"
             />
+            {newTaskDue && (
+              <div className="flex items-center gap-1 shrink-0">
+                <Bell size={14} className="text-gray-400" />
+                <select
+                  value={newTaskReminder ?? 15}
+                  onChange={(e) => setNewTaskReminder(Number(e.target.value) || null)}
+                  className="border border-gray-200 rounded-lg px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
+                >
+                  {REMINDER_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <button
               onClick={addTask}
               disabled={addingTask || !newTaskTitle.trim()}

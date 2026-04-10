@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { LeadCategory } from '@prisma/client';
+import { createCalendarEventForUser } from '@/lib/microsoft-graph';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -50,16 +51,19 @@ export async function POST(request: NextRequest) {
 
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
-  const { title, description, dueDate, assignedToId, leadId, opportunityId } = body;
+  const { title, description, dueDate, assignedToId, leadId, opportunityId, reminderMinutes } = body;
   if (!title?.trim()) return NextResponse.json({ error: 'Titel erforderlich' }, { status: 400 });
 
   const isAdmin = session.user.role === 'ADMIN';
+  const parsedDueDate = dueDate ? new Date(dueDate) : null;
+  const reminder = reminderMinutes !== undefined ? reminderMinutes : (parsedDueDate ? 15 : null);
 
   const task = await prisma.task.create({
     data: {
       title: title.trim(),
       description: description?.trim() || null,
-      dueDate: dueDate ? new Date(dueDate) : null,
+      dueDate: parsedDueDate,
+      reminderMinutes: reminder,
       assignedToId: isAdmin && assignedToId ? assignedToId : session.user.id,
       leadId: leadId || null,
       opportunityId: opportunityId || null,
@@ -70,5 +74,29 @@ export async function POST(request: NextRequest) {
       assignedTo: { select: { id: true, name: true } },
     },
   });
+
+  // Create Outlook calendar event in assigned user's calendar
+  if (parsedDueDate && task.assignedToId) {
+    try {
+      const assignedUser = await prisma.user.findUnique({ where: { id: task.assignedToId }, select: { email: true } });
+      if (assignedUser?.email) {
+        const event = await createCalendarEventForUser(assignedUser.email, {
+          subject: `📋 ${task.title}`,
+          start: parsedDueDate,
+          durationMinutes: 30,
+          body: task.description || undefined,
+          reminderMinutes: reminder ?? 15,
+          isAllDay: !dueDate.includes('T'),
+        });
+        if (event?.id) {
+          await prisma.task.update({ where: { id: task.id }, data: { calendarEventId: event.id } });
+          (task as any).calendarEventId = event.id;
+        }
+      }
+    } catch (e) {
+      console.error('[Calendar] Failed to create event for task:', task.id, e);
+    }
+  }
+
   return NextResponse.json(task, { status: 201 });
 }

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { sendPushToUser } from '@/lib/push';
+import { createCalendarEventForUser } from '@/lib/microsoft-graph';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -36,14 +37,18 @@ export async function POST(request: NextRequest, { params }: Ctx) {
 
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
-  const { title, dueDate, assignedToId } = body;
+  const { title, dueDate, assignedToId, reminderMinutes } = body;
   if (!title) return NextResponse.json({ error: 'title erforderlich' }, { status: 400 });
+
+  const parsedDueDate = dueDate ? new Date(dueDate) : null;
+  const reminder = reminderMinutes !== undefined ? reminderMinutes : (parsedDueDate ? 15 : null);
 
   const [task] = await prisma.$transaction([
     prisma.task.create({
       data: {
         title,
-        dueDate: dueDate ? new Date(dueDate) : null,
+        dueDate: parsedDueDate,
+        reminderMinutes: reminder,
         leadId: id,
         assignedToId: isAdmin ? (assignedToId ?? session.user.id) : session.user.id,
       },
@@ -63,6 +68,27 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       url: '/tasks',
       tag: `task-created-${task.id}`,
     }).catch(() => {});
+  }
+
+  // Create Outlook calendar event in assigned user's calendar
+  if (parsedDueDate && task.assignedToId) {
+    try {
+      const assignedUser = await prisma.user.findUnique({ where: { id: task.assignedToId }, select: { email: true } });
+      if (assignedUser?.email) {
+        const event = await createCalendarEventForUser(assignedUser.email, {
+          subject: `📋 ${task.title}`,
+          start: parsedDueDate,
+          durationMinutes: 30,
+          reminderMinutes: reminder ?? 15,
+          isAllDay: !dueDate.includes('T'),
+        });
+        if (event?.id) {
+          await prisma.task.update({ where: { id: task.id }, data: { calendarEventId: event.id } });
+        }
+      }
+    } catch (e) {
+      console.error('[Calendar] Failed to create event for task:', task.id, e);
+    }
   }
 
   return NextResponse.json(task, { status: 201 });

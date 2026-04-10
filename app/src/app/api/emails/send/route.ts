@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
-import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
+import { getGraphToken, graphFetch, GraphTokenError, GraphApiError } from '@/lib/microsoft-graph';
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
-  if (!token?.accessToken) {
+  const accessToken = await getGraphToken(request);
+  if (!accessToken) {
     return NextResponse.json({ error: 'Keine Microsoft-Verbindung. Bitte mit Microsoft anmelden.' }, { status: 403 });
   }
 
@@ -70,25 +70,18 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+    await graphFetch(accessToken, '/me/sendMail', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token.accessToken}`,
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify(mailPayload),
     });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      if (res.status === 401) {
-        return NextResponse.json({ error: 'Microsoft-Token abgelaufen. Bitte neu anmelden.' }, { status: 401 });
-      }
-      return NextResponse.json({ error: err?.error?.message ?? `Fehler ${res.status}` }, { status: res.status });
-    }
-
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (e) {
+    if (e instanceof GraphTokenError) {
+      return NextResponse.json({ error: e.message }, { status: 401 });
+    }
+    if (e instanceof GraphApiError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
     return NextResponse.json({ error: 'Verbindung zu Microsoft fehlgeschlagen' }, { status: 502 });
   }
 }

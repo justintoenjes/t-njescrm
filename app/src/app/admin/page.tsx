@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Save, Thermometer, UserPlus, Users, KeyRound, Mail, FileText, Shield, Package, ArrowRight, Trash2 } from 'lucide-react';
+import { Save, Thermometer, UserPlus, Users, KeyRound, Mail, FileText, Shield, Package, ArrowRight, Trash2, Calendar } from 'lucide-react';
 import Header from '@/components/Header';
 
 type AdminTab = 'texte' | 'benutzer';
@@ -47,6 +47,10 @@ export default function AdminPage() {
   const [resetUserId, setResetUserId] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState('');
   const [resetting, setResetting] = useState(false);
+
+  // Calendar sync
+  const [calSyncing, setCalSyncing] = useState(false);
+  const [calSyncResult, setCalSyncResult] = useState<{ total: number; synced: number; failed: number } | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/login');
@@ -195,6 +199,18 @@ export default function AdminPage() {
       setUserMsg(e.error ?? 'Fehler');
     }
     setTimeout(() => setUserMsg(''), 2500);
+  }
+
+  async function syncCalendar() {
+    setCalSyncing(true);
+    setCalSyncResult(null);
+    try {
+      const res = await fetch('/api/calendar/sync', { method: 'POST' });
+      if (res.ok) {
+        setCalSyncResult(await res.json());
+      }
+    } catch { /* ignore */ }
+    setCalSyncing(false);
   }
 
   const configValid = !isNaN(parseInt(daysWarm)) && !isNaN(parseInt(daysCold)) && parseInt(daysWarm) >= 1 && parseInt(daysCold) > parseInt(daysWarm);
@@ -490,6 +506,28 @@ export default function AdminPage() {
                   </button>
                   {userMsg && <span className={`text-sm font-medium ${userMsg.includes('erstellt') || userMsg.includes('zurückgesetzt') ? 'text-green-600' : 'text-red-500'}`}>{userMsg}</span>}
                 </div>
+              </div>
+            </div>
+
+            {/* Calendar Sync */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <Calendar size={16} className="text-tc-blue" /> Outlook-Kalender
+              </h3>
+              <p className="text-sm text-gray-500">
+                Bestehende Aufgaben mit Fälligkeitsdatum in die Outlook-Kalender der zugewiesenen Benutzer synchronisieren.
+              </p>
+              <div className="flex items-center gap-3">
+                <button onClick={syncCalendar} disabled={calSyncing}
+                  className="flex items-center gap-1.5 bg-tc-dark hover:bg-tc-dark/90 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
+                  <Calendar size={14} /> {calSyncing ? 'Synchronisiere…' : 'Aufgaben synchronisieren'}
+                </button>
+                {calSyncResult && (
+                  <span className="text-sm text-gray-600">
+                    {calSyncResult.synced} von {calSyncResult.total} synchronisiert
+                    {calSyncResult.failed > 0 && <span className="text-red-500"> ({calSyncResult.failed} fehlgeschlagen)</span>}
+                  </span>
+                )}
               </div>
             </div>
           </div>

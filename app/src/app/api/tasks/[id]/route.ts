@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { createCalendarEventForUser, deleteCalendarEventForUser } from '@/lib/microsoft-graph';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -43,7 +44,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
 
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
-  const { title, description, dueDate, isCompleted, assignedToId } = body;
+  const { title, description, dueDate, isCompleted, assignedToId, reminderMinutes } = body;
   const updated = await prisma.task.update({
     where: { id },
     data: {
@@ -52,6 +53,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
       ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
       ...(isCompleted !== undefined ? { isCompleted } : {}),
       ...(assignedToId !== undefined && isAdmin ? { assignedToId: assignedToId || null } : {}),
+      ...(reminderMinutes !== undefined ? { reminderMinutes } : {}),
     },
     include: {
       lead: { select: { id: true, firstName: true, lastName: true } },
@@ -59,6 +61,45 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
       assignedTo: { select: { id: true, name: true } },
     },
   });
+
+  // Sync calendar event when dueDate changes
+  if (dueDate !== undefined) {
+    const effectiveUserId = updated.assignedToId ?? task.assignedToId;
+    try {
+      const assignedUser = effectiveUserId
+        ? await prisma.user.findUnique({ where: { id: effectiveUserId }, select: { email: true } })
+        : null;
+      if (assignedUser?.email) {
+        // Delete old event if exists
+        if (task.calendarEventId) {
+          try {
+            await deleteCalendarEventForUser(assignedUser.email, task.calendarEventId);
+          } catch { /* Event may already be deleted */ }
+        }
+        // Create new event if dueDate is set
+        const parsedDueDate = dueDate ? new Date(dueDate) : null;
+        if (parsedDueDate) {
+          const reminder = reminderMinutes ?? updated.reminderMinutes ?? 15;
+          const event = await createCalendarEventForUser(assignedUser.email, {
+            subject: `📋 ${updated.title}`,
+            start: parsedDueDate,
+            durationMinutes: 30,
+            body: updated.description || undefined,
+            reminderMinutes: reminder,
+            isAllDay: !dueDate.includes('T'),
+          });
+          if (event?.id) {
+            await prisma.task.update({ where: { id }, data: { calendarEventId: event.id } });
+          }
+        } else {
+          await prisma.task.update({ where: { id }, data: { calendarEventId: null } });
+        }
+      }
+    } catch (e) {
+      console.error('[Calendar] Failed to sync event for task:', id, e);
+    }
+  }
+
   return NextResponse.json(updated);
 }
 

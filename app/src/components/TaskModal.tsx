@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Trash2, CheckCircle2, Circle, Calendar, User, Link, Save } from 'lucide-react';
+import { X, Trash2, CheckCircle2, Circle, Calendar, User, Link, Save, Bell } from 'lucide-react';
 import { useCategory } from '@/lib/category-context';
 
 export type TaskFull = {
@@ -57,6 +57,7 @@ export default function TaskModal({
   const [dueDate, setDueDate] = useState('');
   const [assignedToId, setAssignedToId] = useState('');
   const [isCompleted, setIsCompleted] = useState(false);
+  const [reminderMinutes, setReminderMinutes] = useState<number>(15);
   const [linkType, setLinkType] = useState<'none' | 'lead' | 'opportunity'>('none');
   const [linkSearch, setLinkSearch] = useState('');
   const [linkResults, setLinkResults] = useState<{ id: string; label: string }[]>([]);
@@ -75,6 +76,7 @@ export default function TaskModal({
         setTitle(data.title);
         setDescription(data.description || '');
         setDueDate(data.dueDate ? data.dueDate.slice(0, 10) : '');
+        setReminderMinutes((data as any).reminderMinutes ?? 15);
         setAssignedToId(data.assignedTo?.id || '');
         setIsCompleted(data.isCompleted);
         if (data.opportunity) {
@@ -143,6 +145,7 @@ export default function TaskModal({
         title: title.trim(),
         description: description.trim() || null,
         dueDate: dueDate || null,
+        reminderMinutes: dueDate ? reminderMinutes : null,
         isCompleted,
       };
       if (isAdmin) payload.assignedToId = assignedToId || null;
@@ -257,7 +260,7 @@ export default function TaskModal({
               />
             </div>
 
-            {/* Due date + Assigned */}
+            {/* Due date + Reminder + Assigned */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-500 font-medium flex items-center gap-1 mb-1">
@@ -270,6 +273,24 @@ export default function TaskModal({
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue"
                 />
               </div>
+              <div>
+                <label className="text-xs text-gray-500 font-medium flex items-center gap-1 mb-1">
+                  <Bell size={12} /> Erinnerung
+                </label>
+                <select
+                  value={reminderMinutes}
+                  onChange={e => setReminderMinutes(Number(e.target.value))}
+                  disabled={!dueDate}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue disabled:opacity-50 disabled:bg-gray-50"
+                >
+                  <option value={0}>Keine</option>
+                  <option value={15}>15 Min vorher</option>
+                  <option value={60}>1 Std vorher</option>
+                  <option value={1440}>1 Tag vorher</option>
+                </select>
+              </div>
+            </div>
+            <div>
               <div>
                 <label className="text-xs text-gray-500 font-medium flex items-center gap-1 mb-1">
                   <User size={12} /> Zugewiesen an

@@ -131,12 +131,14 @@ model Note {
 }
 
 model Task {
-  id            String       @id @default(cuid())
-  title         String
-  description   String?
-  dueDate       DateTime?
-  isCompleted   Boolean      @default(false)
-  createdAt     DateTime     @default(now())
+  id              String       @id @default(cuid())
+  title           String
+  description     String?
+  dueDate         DateTime?
+  reminderMinutes Int?
+  calendarEventId String?
+  isCompleted     Boolean      @default(false)
+  createdAt       DateTime     @default(now())
   leadId        String?
   lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
   opportunityId String?

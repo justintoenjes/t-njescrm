@@ -79,6 +79,7 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
   const [tasksLoaded, setTasksLoaded] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDue, setNewTaskDue] = useState('');
+  const [newTaskReminder, setNewTaskReminder] = useState<number | null>(15);
   const [addingTask, setAddingTask] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
 
@@ -442,11 +443,11 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
     const res = await fetch(`/api/leads/${lead.id}/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTaskTitle.trim(), dueDate: newTaskDue || null }),
+      body: JSON.stringify({ title: newTaskTitle.trim(), dueDate: newTaskDue || null, reminderMinutes: newTaskDue ? newTaskReminder : null }),
     });
     const task = await res.json();
     setTasks(prev => [...prev, task]);
-    setNewTaskTitle(''); setNewTaskDue(''); setAddingTask(false);
+    setNewTaskTitle(''); setNewTaskDue(''); setNewTaskReminder(15); setAddingTask(false);
     setMissedCallsCount(0); setNoShowCount(0);
   }
 
@@ -526,6 +527,7 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
     templates, handleOppUpdate, handleOppDelete,
     // Tasks
     tasks, tasksLoaded, newTaskTitle, setNewTaskTitle, newTaskDue, setNewTaskDue,
+    newTaskReminder, setNewTaskReminder,
     addingTask, addTask, toggleTask, deleteTask, showCompleted, setShowCompleted, loadTasks,
     // Emails
     emails, emailsLoaded, emailsError, emailsSyncing, hideEmail, undoHideEmail, hiddenEmailUndo,

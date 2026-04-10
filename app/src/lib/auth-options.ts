@@ -48,7 +48,7 @@ export const authOptions: NextAuthOptions = {
       tenantId: process.env.AZURE_AD_TENANT_ID!,
       authorization: {
         params: {
-          scope: 'openid profile email User.Read Mail.Read Mail.Send GroupMember.Read.All',
+          scope: 'openid profile email offline_access User.Read Mail.Read Mail.Send Calendars.ReadWrite GroupMember.Read.All',
         },
       },
     }),
@@ -151,7 +151,7 @@ export const authOptions: NextAuthOptions = {
             client_secret: process.env.AZURE_AD_CLIENT_SECRET!,
             grant_type: 'refresh_token',
             refresh_token: token.refreshToken as string,
-            scope: 'openid profile email User.Read Mail.Read Mail.Send GroupMember.Read.All',
+            scope: 'openid profile email offline_access User.Read Mail.Read Mail.Send Calendars.ReadWrite GroupMember.Read.All',
           });
           const res = await fetch(`https://login.microsoftonline.com/${process.env.AZURE_AD_TENANT_ID}/oauth2/v2.0/token`, {
             method: 'POST',
@@ -163,6 +163,12 @@ export const authOptions: NextAuthOptions = {
             token.accessToken = data.access_token;
             token.refreshToken = data.refresh_token ?? token.refreshToken;
             token.accessTokenExpires = Date.now() + data.expires_in * 1000;
+            token.error = undefined; // Clear any previous error
+          } else {
+            console.error('[Azure Refresh] No access_token in response:', data.error_description ?? data.error);
+            token.accessToken = undefined;
+            token.accessTokenExpires = 0;
+            token.error = 'RefreshTokenExpired';
           }
         } catch {
           // Token refresh failed — clear tokens so frontend knows to re-login
@@ -179,6 +185,9 @@ export const authOptions: NextAuthOptions = {
       session.user.role = token.role;
       if (token.accessToken) {
         (session as any).accessToken = token.accessToken;
+      }
+      if (token.error) {
+        (session as any).tokenError = token.error;
       }
       return session;
     },
