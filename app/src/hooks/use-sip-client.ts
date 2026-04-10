@@ -330,33 +330,20 @@ export function useSipClient(enabled: boolean) {
         registererRef.current = registerer;
         uaRef.current = ua;
 
-        // Track that we force-registered despite Contact mismatch
-        let forceRegistered = false;
-
-        registerer.stateChange.addListener((newState) => {
-          console.warn('[SIP] Registerer state:', newState);
-          if (forceRegistered && newState === RegistererState.Unregistered) {
-            // Ignore: SIP.js thinks registration failed due to Contact mismatch,
-            // but Kamailio accepted it. Keep our forced registered state.
-            return;
-          }
-          setState(s => ({
-            ...s,
-            registered: newState === RegistererState.Registered,
-            registering: false,
-            error: newState === RegistererState.Unregistered ? null : s.error,
-          }));
-        });
+        // Don't use registerer.stateChange — it fires Unregistered on Contact
+        // mismatch before the register() promise rejects, creating a race condition.
+        // Instead, just call register() and always treat as success since Kamailio
+        // accepts the registration regardless of the Contact header issue.
 
         try {
           await registerer.register();
           console.warn('[SIP] register() resolved');
+          setState(s => ({ ...s, registered: true, registering: false, error: null }));
         } catch (regErr) {
           // Kamailio rewrites the Contact header for FritzBox routing,
           // causing SIP.js to reject with "No Contact header pointing to us".
           // The registration IS accepted by Kamailio — treat as success.
           console.warn('[SIP] register() rejected (expected with FritzBox proxy):', regErr);
-          forceRegistered = true;
           setState(s => ({ ...s, registered: true, registering: false, error: null }));
         }
       } catch (err) {
