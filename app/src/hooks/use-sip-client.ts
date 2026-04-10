@@ -143,7 +143,7 @@ export function useSipClient(enabled: boolean) {
               iceServers: [], // local network, no STUN/TURN needed
             },
           },
-          logLevel: 'warn',
+          logLevel: 'debug',
         });
 
         // Handle incoming calls
@@ -155,14 +155,22 @@ export function useSipClient(enabled: boolean) {
           },
         };
 
+        ua.transport.onDisconnect = (error) => {
+          console.error('[SIP] Transport disconnected', error);
+          setState(s => ({ ...s, registered: false, registering: false, error: 'WebSocket getrennt' }));
+        };
+
+        console.log('[SIP] Starting UserAgent...');
         await ua.start();
         if (cancelled) { ua.stop(); return; }
+        console.log('[SIP] UserAgent started, registering...');
 
         const registerer = new Registerer(ua);
         registererRef.current = registerer;
         uaRef.current = ua;
 
         registerer.stateChange.addListener((newState) => {
+          console.log('[SIP] Registerer state:', newState);
           setState(s => ({
             ...s,
             registered: newState === RegistererState.Registered,
@@ -171,7 +179,13 @@ export function useSipClient(enabled: boolean) {
           }));
         });
 
-        await registerer.register();
+        try {
+          await registerer.register();
+          console.log('[SIP] register() resolved');
+        } catch (regErr) {
+          console.error('[SIP] register() rejected:', regErr);
+          setState(s => ({ ...s, registering: false, error: 'Registrierung fehlgeschlagen' }));
+        }
       } catch (err) {
         if (!cancelled) {
           setState(s => ({
