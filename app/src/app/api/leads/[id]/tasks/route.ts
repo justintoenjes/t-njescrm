@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { sendPushToUser } from '@/lib/push';
-import { createCalendarEventForUser } from '@/lib/microsoft-graph';
+import { syncTaskCalendarEvent } from '@/lib/task-calendar';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -71,28 +71,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   }
 
   // Create Outlook calendar event in assigned user's calendar
-  console.log('[Calendar] Lead task created:', { id: task.id, dueDate: parsedDueDate, assignedToId: task.assignedToId });
-  if (parsedDueDate && task.assignedToId) {
-    try {
-      const assignedUser = await prisma.user.findUnique({ where: { id: task.assignedToId }, select: { email: true } });
-      console.log('[Calendar] Assigned user email:', assignedUser?.email);
-      if (assignedUser?.email) {
-        const event = await createCalendarEventForUser(assignedUser.email, {
-          subject: `📋 ${task.title}`,
-          start: parsedDueDate,
-          durationMinutes: 30,
-          reminderMinutes: reminder ?? 15,
-          isAllDay: !dueDate.includes('T'),
-        });
-        console.log('[Calendar] Event created:', event?.id);
-        if (event?.id) {
-          await prisma.task.update({ where: { id: task.id }, data: { calendarEventId: event.id } });
-        }
-      }
-    } catch (e: any) {
-      console.error('[Calendar] Failed to create event for task:', task.id, e?.message ?? e);
-    }
-  }
+  await syncTaskCalendarEvent({ ...task, reminderMinutes: reminder }, dueDate);
 
   return NextResponse.json(task, { status: 201 });
 }

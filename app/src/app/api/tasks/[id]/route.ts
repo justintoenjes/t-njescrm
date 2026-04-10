@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import { createCalendarEventForUser, deleteCalendarEventForUser } from '@/lib/microsoft-graph';
+import { syncTaskCalendarEvent, deleteTaskCalendarEvent } from '@/lib/task-calendar';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -64,39 +64,17 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
 
   // Sync calendar event when dueDate changes
   if (dueDate !== undefined) {
-    const effectiveUserId = updated.assignedToId ?? task.assignedToId;
-    try {
-      const assignedUser = effectiveUserId
-        ? await prisma.user.findUnique({ where: { id: effectiveUserId }, select: { email: true } })
-        : null;
-      if (assignedUser?.email) {
-        // Delete old event if exists
-        if (task.calendarEventId) {
-          try {
-            await deleteCalendarEventForUser(assignedUser.email, task.calendarEventId);
-          } catch { /* Event may already be deleted */ }
-        }
-        // Create new event if dueDate is set
-        const parsedDueDate = dueDate ? new Date(dueDate) : null;
-        if (parsedDueDate) {
-          const reminder = reminderMinutes ?? updated.reminderMinutes ?? 15;
-          const event = await createCalendarEventForUser(assignedUser.email, {
-            subject: `📋 ${updated.title}`,
-            start: parsedDueDate,
-            durationMinutes: 30,
-            body: updated.description || undefined,
-            reminderMinutes: reminder,
-            isAllDay: !dueDate.includes('T'),
-          });
-          if (event?.id) {
-            await prisma.task.update({ where: { id }, data: { calendarEventId: event.id } });
-          }
-        } else {
-          await prisma.task.update({ where: { id }, data: { calendarEventId: null } });
-        }
-      }
-    } catch (e) {
-      console.error('[Calendar] Failed to sync event for task:', id, e);
+    if (dueDate) {
+      // Date set or changed → create/replace event
+      await syncTaskCalendarEvent({
+        ...updated,
+        calendarEventId: task.calendarEventId,
+        reminderMinutes: reminderMinutes ?? updated.reminderMinutes,
+      }, dueDate);
+    } else {
+      // Date removed → delete event
+      await deleteTaskCalendarEvent(task);
+      await prisma.task.update({ where: { id }, data: { calendarEventId: null } });
     }
   }
 

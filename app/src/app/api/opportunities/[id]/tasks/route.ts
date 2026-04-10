@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { sendPushToUser } from '@/lib/push';
+import { syncTaskCalendarEvent } from '@/lib/task-calendar';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -41,14 +42,18 @@ export async function POST(request: NextRequest, { params }: Ctx) {
 
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Ungültiges JSON' }, { status: 400 }); }
-  const { title, dueDate, assignedToId } = body;
+  const { title, dueDate, assignedToId, reminderMinutes } = body;
   if (!title) return NextResponse.json({ error: 'title erforderlich' }, { status: 400 });
+
+  const parsedDueDate = dueDate ? new Date(dueDate) : null;
+  const reminder = reminderMinutes !== undefined ? reminderMinutes : (parsedDueDate ? 15 : null);
 
   const [task] = await prisma.$transaction([
     prisma.task.create({
       data: {
         title,
-        dueDate: dueDate ? new Date(dueDate) : null,
+        dueDate: parsedDueDate,
+        reminderMinutes: reminder,
         opportunityId: id,
         assignedToId: isAdmin ? (assignedToId ?? session.user.id) : session.user.id,
       },
@@ -69,6 +74,9 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       tag: `task-created-${task.id}`,
     }).catch(() => {});
   }
+
+  // Create Outlook calendar event
+  await syncTaskCalendarEvent({ ...task, reminderMinutes: reminder }, dueDate);
 
   return NextResponse.json(task, { status: 201 });
 }
