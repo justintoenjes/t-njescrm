@@ -38,6 +38,20 @@ const initialState: SipState = {
   callStart: null,
 };
 
+// Remove duplicate payload type entries from SDP (rtpengine bug)
+function deduplicateSdpPayloads(sdp: string): string {
+  return sdp.split('\r\n').reduce((lines: string[], line) => {
+    // Deduplicate a=rtpmap and a=fmtp lines by payload type
+    if (line.startsWith('a=rtpmap:') || line.startsWith('a=fmtp:')) {
+      const pt = line.split(':')[1]?.split(' ')[0];
+      const prefix = line.split(':')[0] + ':' + pt;
+      if (lines.some(l => l.startsWith(prefix))) return lines; // skip duplicate
+    }
+    lines.push(line);
+    return lines;
+  }, []).join('\r\n');
+}
+
 function extractNumber(uri: string): string {
   const match = uri.match(/sip:([^@]+)@/);
   return match?.[1] ?? uri;
@@ -326,7 +340,17 @@ export function useSipClient(enabled: boolean) {
       return;
     }
     console.log('[SIP] Accepting invitation...');
-    (session as Invitation).accept({
+    const invitation = session as Invitation;
+
+    // Fix duplicate payload types in incoming SDP from rtpengine
+    // Patch the INVITE body before accept() processes it
+    const origBody = invitation.request?.body;
+    if (origBody && typeof origBody === 'string') {
+      (invitation.request as { body: string }).body = deduplicateSdpPayloads(origBody);
+      console.log('[SIP] Cleaned duplicate SDP payloads from INVITE');
+    }
+
+    invitation.accept({
       sessionDescriptionHandlerOptions: {
         constraints: { audio: true, video: false },
       },
