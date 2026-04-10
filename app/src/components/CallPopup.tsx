@@ -88,40 +88,23 @@ export default function CallPopup() {
     return () => { es?.close(); clearTimeout(retryTimer); };
   }, [status]);
 
-  // Lead lookup for SIP calls — use SSE event's leadName if available, otherwise fetch
+  // Lead lookup for SIP calls via CRM search API
   const [sipLeadName, setSipLeadName] = useState<string | null>(null);
   const sipActive = sipEnabled && sip.callState !== 'idle';
 
-  // Pick up lead name from SSE callmonitor event (it has server-side lead matching)
   useEffect(() => {
-    if (!sipActive || !call?.leadName) return;
-    const sipNum = sip.remoteNumber ? normalizeNumber(sip.remoteNumber) : null;
-    const sseNum = call.externalNumber ? normalizeNumber(call.externalNumber) : null;
-    if (sipNum && sseNum && (sipNum.endsWith(sseNum) || sseNum.endsWith(sipNum))) {
-      setSipLeadName(call.leadName);
-    }
-  }, [sipActive, sip.remoteNumber, call?.leadName, call?.externalNumber]);
-
-  // Fallback: fetch lead name if SSE didn't provide one
-  useEffect(() => {
-    if (!sip.remoteNumber || sip.callState === 'idle' || sipLeadName) return;
+    if (!sip.remoteNumber || sip.callState === 'idle') { setSipLeadName(null); return; }
     const num = sip.remoteNumber;
-    fetch(`/api/leads?phone=${encodeURIComponent(num)}&limit=1`)
+    fetch(`/api/search?q=${encodeURIComponent(num)}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data?.length > 0) {
-          const l = data[0];
-          const name = [l.lastName, l.firstName].filter(Boolean).join(', ');
-          if (name) setSipLeadName(name);
-        }
+        if (!data?.leads?.length) return;
+        const l = data.leads[0];
+        const name = [l.lastName, l.firstName].filter(Boolean).join(', ');
+        if (name) setSipLeadName(name);
       })
       .catch(() => {});
-  }, [sip.remoteNumber, sip.callState, sipLeadName]);
-
-  // Reset lead name when call ends
-  useEffect(() => {
-    if (sip.callState === 'idle') setSipLeadName(null);
-  }, [sip.callState]);
+  }, [sip.remoteNumber, sip.callState]);
 
   // Deduplicate
   const sipNumber = sip.remoteNumber ? normalizeNumber(sip.remoteNumber) : null;
