@@ -131,9 +131,6 @@ function createRinger() {
   };
 }
 
-// Apply SDP patch immediately on module load
-if (typeof window !== 'undefined') patchRtcGlobal();
-
 export function useSipClient(enabled: boolean) {
   const [state, setState] = useState<SipState>(initialState);
   const uaRef = useRef<UserAgent | null>(null);
@@ -242,6 +239,7 @@ export function useSipClient(enabled: boolean) {
 
     async function connect() {
       setState(s => ({ ...s, registering: true, error: null }));
+      patchRtcGlobal();
 
       try {
         const res = await fetch('/api/sip/credentials');
