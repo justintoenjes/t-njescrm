@@ -13,7 +13,7 @@ export async function GET() {
     select: { dialMethod: true, emailSignature: true, nameOrder: true, password: true },
   });
   return NextResponse.json({
-    dialMethod: user?.dialMethod ?? 'tel',
+    dialMethod: user?.dialMethod ?? 'sip',
     emailSignature: user?.emailSignature ?? '',
     nameOrder: user?.nameOrder ?? 'lastFirst',
     hasPassword: !!(user?.password),

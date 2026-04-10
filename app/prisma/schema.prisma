@@ -14,7 +14,7 @@ model User {
   email         String        @unique
   password      String
   role          Role          @default(USER)
-  dialMethod     String        @default("tel")
+  dialMethod     String        @default("sip")
   sipUsername     String?
   sipPassword    String?       // AES-256-GCM encrypted
   emailSignature String        @default("")

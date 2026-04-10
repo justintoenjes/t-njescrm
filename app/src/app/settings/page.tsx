@@ -13,7 +13,7 @@ export default function SettingsPage() {
 
   const [nameOrder, setNameOrder] = useState('lastFirst');
   const [nameOrderSaved, setNameOrderSaved] = useState(false);
-  const [dialMethod, setDialMethod] = useState('tel');
+  const [dialMethod, setDialMethod] = useState('sip');
   const [dialSaved, setDialSaved] = useState(false);
   const [emailSignature, setEmailSignature] = useState('');
   const [sigSaving, setSigSaving] = useState(false);
@@ -120,17 +120,17 @@ export default function SettingsPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => saveDialMethod('tel')}
-              className={`px-4 py-2 text-sm rounded-lg border transition ${dialMethod === 'tel' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-              Telefonie-App
+            <button onClick={() => saveDialMethod('sip')}
+              className={`px-4 py-2 text-sm rounded-lg border transition ${dialMethod === 'sip' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              Browser SIP
             </button>
             <button onClick={() => saveDialMethod('fritzbox')}
               className={`px-4 py-2 text-sm rounded-lg border transition ${dialMethod === 'fritzbox' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
               Fritz!Box Wählhilfe
             </button>
-            <button onClick={() => saveDialMethod('sip')}
-              className={`px-4 py-2 text-sm rounded-lg border transition ${dialMethod === 'sip' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-              Browser SIP
+            <button onClick={() => saveDialMethod('tel')}
+              className={`px-4 py-2 text-sm rounded-lg border transition ${dialMethod === 'tel' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              Telefonie-App
             </button>
           </div>
           <p className="text-xs text-gray-400">
