@@ -155,7 +155,8 @@ export default function PipelinePage() {
       const res = await fetch(`/api/leads?search=${encodeURIComponent(leadSearch)}&category=${category}`);
       if (res.ok) {
         const data = await res.json();
-        setLeadResults(data.map((l: any) => ({ id: l.id, firstName: l.firstName, lastName: l.lastName })));
+        const leads = data.leads ?? data;
+        setLeadResults(leads.map((l: any) => ({ id: l.id, firstName: l.firstName, lastName: l.lastName })));
       }
     }, 300);
     return () => clearTimeout(t);
@@ -187,7 +188,8 @@ export default function PipelinePage() {
       if (data.email) {
         const searchRes = await fetch(`/api/leads?search=${encodeURIComponent(data.email)}&category=${category}`);
         if (searchRes.ok) {
-          const leads = await searchRes.json();
+          const searchData = await searchRes.json();
+          const leads = searchData.leads ?? searchData;
           const match = leads.find((l: any) => l.email?.toLowerCase() === data.email.toLowerCase());
           if (match) {
             // Existing contact found — select it

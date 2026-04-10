@@ -160,12 +160,17 @@ export default function TasksPage() {
     const params = new URLSearchParams(window.location.search);
     const openLeadId = params.get('openLead');
     const create = params.get('create');
+    const taskId = params.get('taskId');
     if (openLeadId) {
       openLead(openLeadId);
       window.history.replaceState(null, '', '/tasks');
     }
     if (create === 'true') {
       setShowCreateTask(true);
+      window.history.replaceState(null, '', '/tasks');
+    }
+    if (taskId) {
+      setOpenTaskId(taskId);
       window.history.replaceState(null, '', '/tasks');
     }
   }, [status]);

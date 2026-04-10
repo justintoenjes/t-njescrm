@@ -38,7 +38,7 @@ export async function syncTaskCalendarEvent(task: {
     console.log('[Calendar] Creating event:', { taskId: task.id, userEmail: user.email, isAllDay, dueDate: task.dueDate });
 
     const baseUrl = process.env.NEXTAUTH_URL || 'https://microcrm';
-    const taskUrl = `${baseUrl}/tasks`;
+    const taskUrl = `${baseUrl}/tasks?taskId=${task.id}`;
     const bodyParts = [task.description, `Aufgabe im CRM öffnen: ${taskUrl}`].filter(Boolean).join('\n\n');
 
     const event = await createCalendarEventForUser(user.email, {
