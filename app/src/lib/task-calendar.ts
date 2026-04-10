@@ -37,11 +37,15 @@ export async function syncTaskCalendarEvent(task: {
     const isAllDay = !rawDueDate || !rawDueDate.includes('T');
     console.log('[Calendar] Creating event:', { taskId: task.id, userEmail: user.email, isAllDay, dueDate: task.dueDate });
 
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://microcrm';
+    const taskUrl = `${baseUrl}/tasks`;
+    const bodyParts = [task.description, `Aufgabe im CRM öffnen: ${taskUrl}`].filter(Boolean).join('\n\n');
+
     const event = await createCalendarEventForUser(user.email, {
-      subject: `📋 ${task.title}`,
+      subject: `[CRM] ${task.title}`,
       start: task.dueDate,
       durationMinutes: 30,
-      body: task.description || undefined,
+      body: bodyParts,
       reminderMinutes: task.reminderMinutes ?? 15,
       isAllDay,
     });

@@ -29,11 +29,13 @@ export async function POST() {
   for (const task of tasks) {
     if (!task.assignedTo?.email || !task.dueDate) continue;
     try {
+      const baseUrl = process.env.NEXTAUTH_URL || 'https://microcrm';
+      const bodyParts = [task.description, `Aufgabe im CRM öffnen: ${baseUrl}/tasks`].filter(Boolean).join('\n\n');
       const event = await createCalendarEventForUser(task.assignedTo.email, {
-        subject: `📋 ${task.title}`,
+        subject: `[CRM] ${task.title}`,
         start: task.dueDate,
         durationMinutes: 30,
-        body: task.description || undefined,
+        body: bodyParts,
         reminderMinutes: task.reminderMinutes ?? 15,
         isAllDay: true,
       });

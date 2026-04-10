@@ -113,7 +113,12 @@ function buildEventPayload(input: CalendarEventInput) {
   }
 
   if (body) {
-    payload.body = { contentType: 'Text', content: body };
+    // Convert newlines to <br> and linkify URLs for clickable links in Outlook
+    const htmlBody = body
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')
+      .replace(/\n/g, '<br>');
+    payload.body = { contentType: 'HTML', content: htmlBody };
   }
 
   return payload;
