@@ -302,8 +302,23 @@ export function useSipClient(enabled: boolean) {
         };
 
         ua.transport.onDisconnect = (error) => {
-          console.error('[SIP] Transport disconnected', error);
-          setState(s => ({ ...s, registered: false, registering: false, error: 'WebSocket getrennt' }));
+          console.warn('[SIP] Transport disconnected, reconnecting in 5s...', error);
+          setState(s => ({ ...s, registered: false, registering: true }));
+          if (!cancelled) {
+            setTimeout(() => {
+              if (cancelled) return;
+              ua.reconnect().then(() => {
+                console.warn('[SIP] Reconnected, re-registering...');
+                registerer.register().catch(() => {
+                  // Expected: Contact mismatch, but registration works
+                  setState(s => ({ ...s, registered: true, registering: false, error: null }));
+                });
+              }).catch((err: unknown) => {
+                console.error('[SIP] Reconnect failed:', err);
+                setState(s => ({ ...s, registering: false, error: 'Reconnect fehlgeschlagen' }));
+              });
+            }, 5000);
+          }
         };
 
         console.log('[SIP] Starting UserAgent...');
@@ -315,8 +330,16 @@ export function useSipClient(enabled: boolean) {
         registererRef.current = registerer;
         uaRef.current = ua;
 
+        // Track that we force-registered despite Contact mismatch
+        let forceRegistered = false;
+
         registerer.stateChange.addListener((newState) => {
-          console.log('[SIP] Registerer state:', newState);
+          console.warn('[SIP] Registerer state:', newState);
+          if (forceRegistered && newState === RegistererState.Unregistered) {
+            // Ignore: SIP.js thinks registration failed due to Contact mismatch,
+            // but Kamailio accepted it. Keep our forced registered state.
+            return;
+          }
           setState(s => ({
             ...s,
             registered: newState === RegistererState.Registered,
@@ -327,12 +350,13 @@ export function useSipClient(enabled: boolean) {
 
         try {
           await registerer.register();
-          console.log('[SIP] register() resolved');
+          console.warn('[SIP] register() resolved');
         } catch (regErr) {
           // Kamailio rewrites the Contact header for FritzBox routing,
           // causing SIP.js to reject with "No Contact header pointing to us".
           // The registration IS accepted by Kamailio — treat as success.
           console.warn('[SIP] register() rejected (expected with FritzBox proxy):', regErr);
+          forceRegistered = true;
           setState(s => ({ ...s, registered: true, registering: false, error: null }));
         }
       } catch (err) {
