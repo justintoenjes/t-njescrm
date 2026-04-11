@@ -152,6 +152,31 @@ function createRinger() {
   };
 }
 
+// Show a system notification for incoming calls (works in background)
+function showCallNotification(number: string): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  if (Notification.permission !== 'granted') return;
+
+  navigator.serviceWorker.ready.then(reg => {
+    reg.showNotification('Eingehender Anruf', {
+      body: number || 'Unbekannte Nummer',
+      icon: '/icon-512.png',
+      tag: 'sip-incoming-call',
+      requireInteraction: true,
+      data: { url: '/' },
+    } as NotificationOptions);
+  }).catch(() => {});
+}
+
+function closeCallNotification(): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.ready.then(reg => {
+    reg.getNotifications({ tag: 'sip-incoming-call' }).then(notifications => {
+      notifications.forEach(n => n.close());
+    });
+  }).catch(() => {});
+}
+
 export function useSipClient(enabled: boolean) {
   const [state, setState] = useState<SipState>(initialState);
   const uaRef = useRef<UserAgent | null>(null);
@@ -229,11 +254,13 @@ export function useSipClient(enabled: boolean) {
         case SessionState.Established:
           setupSessionMedia(session);
           ringerRef.current?.stop();
+          closeCallNotification();
           setState(s => ({ ...s, callState: 'connected', callStart: Date.now() }));
           break;
         case SessionState.Terminated:
           sessionRef.current = null;
           ringerRef.current?.stop();
+          closeCallNotification();
           setState(s => ({ ...s, callState: 'idle', callDirection: null, remoteNumber: null, muted: false, onHold: false, callStart: null }));
           break;
       }
@@ -295,6 +322,8 @@ export function useSipClient(enabled: boolean) {
             console.log('[SIP] Incoming call from:', remote);
             setState(s => ({ ...s, callState: 'ringing', callDirection: 'incoming', remoteNumber: remote }));
             bindSession(invitation, 'incoming');
+            // System notification (works in background)
+            showCallNotification(remote);
             // Start ring sound
             ringerRef.current = createRinger();
             ringerRef.current.start();
