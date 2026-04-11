@@ -60,10 +60,17 @@ rsync -az --checksum --delete \
   "$LOCAL_APP/" "$REMOTE:$APP_DIR/"
 deploy_timer "sync app"
 
-# ── Sync Nginx Config ───────────────────────────────────────────────────────
-echo "==> Syncing nginx config..."
+# ── Sync Nginx Config (nur wenn geändert) ──────────────────────────────────
+PROXY_CHANGED=false
 scp "$(dirname "$0")/nginx.conf" "$REMOTE:/tmp/nginx.conf"
-ssh "$REMOTE" "sudo cp /tmp/nginx.conf /srv/microcrm/nginx.conf && rm /tmp/nginx.conf"
+if ! ssh "$REMOTE" "diff -q /tmp/nginx.conf /srv/microcrm/nginx.conf >/dev/null 2>&1"; then
+  PROXY_CHANGED=true
+  echo "==> Syncing nginx config (geändert)..."
+  ssh "$REMOTE" "sudo cp /tmp/nginx.conf /srv/microcrm/nginx.conf && rm /tmp/nginx.conf"
+else
+  echo "==> Nginx config unverändert, skip."
+  ssh "$REMOTE" "rm /tmp/nginx.conf"
+fi
 
 # ── Sync Certs ──────────────────────────────────────────────────────────────
 echo "==> Syncing certs (if present)..."
@@ -167,9 +174,13 @@ if [ "$SIP_GW_CHANGED" = true ]; then
   deploy_timer "restart sip-gw"
 fi
 
-remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-proxy.service"
-wait_for_service "microcrm-proxy.service" 15
-deploy_timer "restart proxy"
+if [ "$PROXY_CHANGED" = true ]; then
+  remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-proxy.service"
+  wait_for_service "microcrm-proxy.service" 15
+  deploy_timer "restart proxy"
+else
+  echo "==> Proxy restart: skip (unverändert)"
+fi
 
 # ── Health Check ─────────────────────────────────────────────────────────────
 echo "==> Health-Check..."

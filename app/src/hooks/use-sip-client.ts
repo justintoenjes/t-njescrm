@@ -302,23 +302,30 @@ export function useSipClient(enabled: boolean) {
         };
 
         ua.transport.onDisconnect = (error) => {
-          console.warn('[SIP] Transport disconnected, reconnecting in 5s...', error);
+          console.warn('[SIP] Transport disconnected, reconnecting...', error);
           setState(s => ({ ...s, registered: false, registering: true }));
-          if (!cancelled) {
+
+          let attempt = 0;
+          function tryReconnect() {
+            if (cancelled) return;
+            attempt++;
+            const delay = Math.min(5000 * attempt, 30000); // 5s, 10s, 15s, ... max 30s
+            console.warn(`[SIP] Reconnect attempt ${attempt} in ${delay / 1000}s...`);
             setTimeout(() => {
               if (cancelled) return;
               ua.reconnect().then(() => {
                 console.warn('[SIP] Reconnected, re-registering...');
                 registerer.register().catch(() => {
-                  // Expected: Contact mismatch, but registration works
                   setState(s => ({ ...s, registered: true, registering: false, error: null }));
                 });
-              }).catch((err: unknown) => {
-                console.error('[SIP] Reconnect failed:', err);
-                setState(s => ({ ...s, registering: false, error: 'Reconnect fehlgeschlagen' }));
+                setState(s => ({ ...s, registered: true, registering: false, error: null }));
+              }).catch(() => {
+                console.warn('[SIP] Reconnect failed, retrying...');
+                tryReconnect();
               });
-            }, 5000);
+            }, delay);
           }
+          tryReconnect();
         };
 
         console.log('[SIP] Starting UserAgent...');
