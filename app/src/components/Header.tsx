@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { useState, useRef, useEffect } from 'react';
-import { Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3, Plus, Search, Phone } from 'lucide-react';
+import { Kanban, CheckSquare, LogOut, Briefcase, UserSearch, Building2, Package, Shield, User, BarChart3, Plus, Search, Phone, Settings } from 'lucide-react';
 import { useCategory } from '@/lib/category-context';
 import GlobalSearch from '@/components/GlobalSearch';
 import type { LucideIcon } from 'lucide-react';
@@ -15,7 +15,6 @@ type NavItem = { href: string; label: string; icon: LucideIcon; vertriebOnly?: b
 const NAV_ITEMS: NavItem[] = [
   { href: '/pipeline',   label: 'Pipeline',  icon: Kanban },
   { href: '/tasks',      label: 'Aufgaben',  icon: CheckSquare },
-  { href: '/calls',      label: 'Anrufe',    icon: Phone },
   { href: '/companies',  label: 'Firmen',    icon: Building2,   vertriebOnly: true },
   { href: '/templates',  label: 'Stellen',   icon: Package,     recruitingOnly: true },
 ];
@@ -98,7 +97,7 @@ export default function Header() {
               <Link
                 key={href}
                 href={href}
-                className={`relative flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap
+                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap
                   ${active
                     ? 'bg-tc-blue/20 text-tc-blue'
                     : 'text-white/60 hover:bg-white/10 hover:text-white/90'
@@ -106,11 +105,6 @@ export default function Header() {
               >
                 <Icon size={15} />
                 <span className="hidden md:inline">{label}</span>
-                {href === '/calls' && missedCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center leading-none">
-                    {missedCount > 9 ? '9+' : missedCount}
-                  </span>
-                )}
               </Link>
             );
           })}
@@ -191,7 +185,25 @@ export default function Header() {
 
           <span className="w-px h-4 bg-white/15 mx-0.5 hidden sm:block" />
 
-          {/* User */}
+          {/* Calls */}
+          <Link
+            href="/calls"
+            className={`relative flex items-center p-1.5 rounded-md transition-colors
+              ${pathname === '/calls'
+                ? 'bg-tc-blue/20 text-tc-blue'
+                : 'text-white/50 hover:bg-white/10 hover:text-white/90'
+              }`}
+            title="Anrufe"
+          >
+            <Phone size={15} />
+            {missedCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center leading-none">
+                {missedCount > 9 ? '9+' : missedCount}
+              </span>
+            )}
+          </Link>
+
+          {/* Settings */}
           <Link
             href="/settings"
             className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm font-medium transition-colors
@@ -200,7 +212,7 @@ export default function Header() {
                 : 'text-white/50 hover:bg-white/10 hover:text-white/90'
               }`}
           >
-            <User size={15} />
+            <Settings size={15} />
             <span className="hidden sm:block">{session?.user.name}</span>
           </Link>
           {session?.user.role === 'ADMIN' && (
