@@ -3,7 +3,8 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSipClient } from '@/hooks/use-sip-client';
-import { Phone, PhoneOff, X } from 'lucide-react';
+import { Phone, PhoneOff, X, Bell } from 'lucide-react';
+import { usePush } from '@/components/PushNotificationInit';
 import type { SipState, SipActions } from '@/hooks/use-sip-client';
 
 type SipContextType = {
@@ -85,9 +86,35 @@ function SipStatusToast({ enabled, state }: { enabled: boolean; state: SipState 
   );
 }
 
+function NotificationBanner({ onDismiss }: { onDismiss: () => void }) {
+  const { requestAndSubscribe } = usePush();
+
+  async function handleEnable() {
+    await requestAndSubscribe();
+    onDismiss();
+  }
+
+  return (
+    <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[250] animate-in fade-in slide-in-from-top-2">
+      <div className="flex items-center gap-3 bg-white rounded-xl shadow-lg border border-gray-200 px-4 py-3 text-sm">
+        <Bell size={16} className="text-tc-blue shrink-0" />
+        <span className="text-gray-700">Benachrichtigungen für Anrufe aktivieren?</span>
+        <button onClick={handleEnable}
+          className="bg-tc-blue text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-tc-blue/90 transition whitespace-nowrap">
+          Aktivieren
+        </button>
+        <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600">
+          <X size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function SipProvider({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
   const [dialMethod, setDialMethod] = useState<string>('sip');
+  const [showNotifBanner, setShowNotifBanner] = useState(false);
 
   useEffect(() => {
     if (status !== 'authenticated') return;
@@ -100,10 +127,20 @@ export default function SipProvider({ children }: { children: React.ReactNode })
   const enabled = dialMethod === 'sip';
   const { state, actions } = useSipClient(enabled);
 
+  // Show notification banner once when SIP is registered but notifications not granted
+  useEffect(() => {
+    if (!enabled || !state.registered) return;
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission === 'default') {
+      setShowNotifBanner(true);
+    }
+  }, [enabled, state.registered]);
+
   return (
     <SipContext.Provider value={{ state, actions, enabled }}>
       {children}
       <SipStatusToast enabled={enabled} state={state} />
+      {showNotifBanner && <NotificationBanner onDismiss={() => setShowNotifBanner(false)} />}
     </SipContext.Provider>
   );
 }

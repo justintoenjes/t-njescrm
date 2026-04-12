@@ -12,19 +12,10 @@ export function usePushNotifications() {
     if (!session || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
     navigator.serviceWorker.register('/sw.js').then(async (reg) => {
-      if (Notification.permission === 'granted') {
-        // Already granted — just re-subscribe
-        if (!subscribedRef.current) {
-          subscribedRef.current = true;
-          await subscribeWithReg(reg);
-        }
-      } else if (Notification.permission === 'default') {
-        // Not yet asked — request permission automatically
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted' && !subscribedRef.current) {
-          subscribedRef.current = true;
-          await subscribeWithReg(reg);
-        }
+      // Auto-resubscribe if permission already granted
+      if (Notification.permission === 'granted' && !subscribedRef.current) {
+        subscribedRef.current = true;
+        await subscribeWithReg(reg);
       }
     });
   }, [session]);
