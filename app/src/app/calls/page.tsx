@@ -168,7 +168,6 @@ function CallRow({
       {/* Actions */}
       {!editing && (
         <div className="flex items-center gap-1 shrink-0">
-          <DialButton number={call.externalNumber} />
           {!leadName && (
             <>
               <button
@@ -189,6 +188,7 @@ function CallRow({
               </button>
             </>
           )}
+          <DialButton number={call.externalNumber} />
         </div>
       )}
     </div>
