@@ -5,8 +5,8 @@
 export function normalizePhone(phone: string | null | undefined): string | null {
   if (!phone) return null;
 
-  // Remove all formatting characters: spaces, dashes, slashes, parentheses, dots
-  let n = phone.replace(/[\s\-\/()+.]/g, '');
+  // Remove all formatting characters: spaces, dashes, slashes, parentheses, dots, hash
+  let n = phone.replace(/[\s\-\/()+.#]/g, '');
 
   // Remove leading zeros from country code variants
   if (n.startsWith('0049')) {

@@ -67,6 +67,7 @@ function CallRow({
   const leadName = call.lead
     ? [call.lead.lastName, call.lead.firstName].filter(Boolean).join(', ')
     : null;
+  const cleanNum = call.externalNumber.replace(/#/g, '');
 
   const [editing, setEditing] = useState(false);
   const [labelInput, setLabelInput] = useState(call.label ?? '');
@@ -76,7 +77,7 @@ function CallRow({
     const trimmed = labelInput.trim();
     if (!trimmed) { setEditing(false); setLabelInput(call.label ?? ''); return; }
     setSaving(true);
-    await onSaveLabel(call.externalNumber, trimmed);
+    await onSaveLabel(cleanNum, trimmed);
     setSaving(false);
     setEditing(false);
   }
@@ -107,7 +108,7 @@ function CallRow({
             {call.lead?.companyRef?.name && (
               <span className="text-xs text-gray-400 ml-2">{call.lead.companyRef.name}</span>
             )}
-            <p className="text-xs text-gray-400">{call.externalNumber}</p>
+            <p className="text-xs text-gray-400">{cleanNum}</p>
           </>
         ) : editing ? (
           <div className="flex items-center gap-1.5">
@@ -144,14 +145,36 @@ function CallRow({
             <p className={`text-sm font-medium ${isMissed ? 'text-red-700' : 'text-gray-900'}`}>
               {call.label}
             </p>
-            <p className="text-xs text-gray-400">{call.externalNumber}</p>
+            <p className="text-xs text-gray-400">{cleanNum}</p>
           </>
         ) : (
           <p className={`text-sm font-medium ${isMissed ? 'text-red-700' : 'text-gray-900'}`}>
-            {call.externalNumber}
+            {cleanNum}
           </p>
         )}
       </div>
+
+      {/* Optional actions (vary by row) */}
+      {!editing && !leadName && (
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="shrink-0 px-2.5 py-2 bg-gray-50 hover:bg-gray-100 text-gray-500 border border-gray-200 rounded-lg transition"
+            title={call.label ? 'Name bearbeiten' : 'Nummer benennen'}
+          >
+            <Pencil size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onCreateLead(cleanNum)}
+            className="shrink-0 px-2.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg transition"
+            title="Als Kontakt anlegen"
+          >
+            <UserPlus size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Duration */}
       <div className="flex items-center gap-1 text-xs text-gray-400 shrink-0">
@@ -165,32 +188,8 @@ function CallRow({
         <p className="text-xs text-gray-400">{time}</p>
       </div>
 
-      {/* Actions */}
-      {!editing && (
-        <div className="flex items-center gap-1 shrink-0">
-          {!leadName && (
-            <>
-              <button
-                type="button"
-                onClick={() => setEditing(true)}
-                className="shrink-0 px-2.5 py-2 bg-gray-50 hover:bg-gray-100 text-gray-500 border border-gray-200 rounded-lg transition"
-                title={call.label ? 'Name bearbeiten' : 'Nummer benennen'}
-              >
-                <Pencil size={14} />
-              </button>
-              <button
-                type="button"
-                onClick={() => onCreateLead(call.externalNumber)}
-                className="shrink-0 px-2.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg transition"
-                title="Als Kontakt anlegen"
-              >
-                <UserPlus size={14} />
-              </button>
-            </>
-          )}
-          <DialButton number={call.externalNumber} />
-        </div>
-      )}
+      {/* Dial-back (always present) */}
+      {!editing && <DialButton number={cleanNum} />}
     </div>
   );
 }

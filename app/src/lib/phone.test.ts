@@ -43,4 +43,8 @@ describe('normalizePhone', () => {
     // + gets stripped by regex, then 49 prefix detected → same result
     expect(normalizePhone('+491711234567')).toBe('+491711234567');
   });
+
+  it('strips trailing hash', () => {
+    expect(normalizePhone('0171 1234567#')).toBe('+491711234567');
+  });
 });
