@@ -182,6 +182,8 @@ export default function HomePage() {
       }).catch(() => {});
     }
     if (create === 'true') {
+      const phone = params.get('phone');
+      if (phone) setForm({ ...emptyForm, phone });
       setShowCreate(true);
       window.history.replaceState(null, '', '/leads');
     }

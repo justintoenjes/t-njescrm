@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { normalizePhone } from '@/lib/phone';
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -36,7 +37,23 @@ export async function GET(req: NextRequest) {
     prisma.callLog.count({ where: { seen: false, answered: false, direction: 'incoming' } }),
   ]);
 
-  return NextResponse.json({ calls, total, unseenCount, page, pages: Math.ceil(total / limit) });
+  // Load PhoneLabels for unknown-lead calls
+  const unknownNumbers = Array.from(new Set(
+    calls.filter(c => !c.leadId)
+      .map(c => normalizePhone(c.externalNumber))
+      .filter((n): n is string => Boolean(n))
+  ));
+  const labels = unknownNumbers.length > 0
+    ? await prisma.phoneLabel.findMany({ where: { number: { in: unknownNumbers } } })
+    : [];
+  const labelMap = new Map(labels.map(l => [l.number, l.label]));
+  const callsWithLabels = calls.map(c => {
+    if (c.leadId) return { ...c, label: null };
+    const norm = normalizePhone(c.externalNumber);
+    return { ...c, label: norm ? labelMap.get(norm) ?? null : null };
+  });
+
+  return NextResponse.json({ calls: callsWithLabels, total, unseenCount, page, pages: Math.ceil(total / limit) });
 }
 
 // Mark calls as seen

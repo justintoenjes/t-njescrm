@@ -28,6 +28,7 @@ model User {
   pushSubscriptions  PushSubscription[]
   assignedTemplates  ProductTemplate[] @relation("TemplateAssignees")
   hiddenEmails       Email[]           @relation("HiddenEmails")
+  phoneLabels        PhoneLabel[]
 }
 
 model PushSubscription {
@@ -213,6 +214,14 @@ model CallLog {
 model GlobalConfig {
   key   String @id
   value String
+}
+
+model PhoneLabel {
+  number      String   @id
+  label       String
+  createdAt   DateTime @default(now())
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
 }
 
 enum OpportunityStage {

@@ -11,6 +11,7 @@ type SipContextType = {
   state: SipState;
   actions: SipActions;
   enabled: boolean;
+  dialMethod: string;
 };
 
 const noop = () => {};
@@ -28,6 +29,7 @@ const SipContext = createContext<SipContextType>({
   state: defaultState,
   actions: defaultActions,
   enabled: false,
+  dialMethod: 'sip',
 });
 
 export function useSip() {
@@ -137,7 +139,7 @@ export default function SipProvider({ children }: { children: React.ReactNode })
   }, [enabled, state.registered]);
 
   return (
-    <SipContext.Provider value={{ state, actions, enabled }}>
+    <SipContext.Provider value={{ state, actions, enabled, dialMethod }}>
       {children}
       <SipStatusToast enabled={enabled} state={state} />
       {showNotifBanner && <NotificationBanner onDismiss={() => setShowNotifBanner(false)} />}
