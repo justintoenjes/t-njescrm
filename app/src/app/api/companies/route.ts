@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { computeLeadPhase } from '@/lib/phase';
 import { calculateLeadScore, scoreToTemperature } from '@/lib/lead-score';
 import { ACTIVE_STAGES } from '@/lib/opportunity';
+import { isLeadOwner } from '@/lib/permissions';
 
 // Stage progression index for "best phase" comparison
 const STAGE_INDEX: Record<string, number> = {
@@ -43,14 +44,19 @@ export async function GET(request: NextRequest) {
   const daysWarm = parseInt(configs.find(c => c.key === 'days_warm')?.value ?? '14');
   const daysCold = parseInt(configs.find(c => c.key === 'days_cold')?.value ?? '30');
   const scoreConfig = { daysWarm, daysCold };
+  const isAdmin = session.user.role === 'ADMIN';
 
   const result = companies.map(({ leads, _count: companyCounts, ...c }) => {
-    const activeOpps = leads.flatMap(l => l.opportunities.filter(o => o.stage !== 'WON' && o.stage !== 'LOST' && o.stage !== 'HIRED' && o.stage !== 'REJECTED'));
+    // Deal aggregates (open requests, pipeline value, best phase, temperature) are
+    // sensitive — compute them only over leads the user owns. leadCount stays the full
+    // contact count (contacts are a shared directory, Variante A).
+    const visibleLeads = leads.filter(l => isLeadOwner(l, session.user.id, isAdmin));
+    const activeOpps = visibleLeads.flatMap(l => l.opportunities.filter(o => o.stage !== 'WON' && o.stage !== 'LOST' && o.stage !== 'HIRED' && o.stage !== 'REJECTED'));
     const tempDist = { hot: 0, warm: 0, cold: 0 };
     let bestPhase: string | null = null;
     let bestPhaseIndex = -1;
 
-    for (const lead of leads) {
+    for (const lead of visibleLeads) {
       const { _count: leadCounts, ...leadData } = lead;
       const leadActiveOpps = leadData.opportunities.filter(o => o.stage !== 'WON' && o.stage !== 'LOST');
       const phase = computeLeadPhase({ ...leadData, opportunities: leadData.opportunities, _noteCount: leadCounts.notes });

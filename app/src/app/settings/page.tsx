@@ -92,7 +92,7 @@ export default function SettingsPage() {
               <p className="text-sm text-gray-500">Reihenfolge in der Leads-Tabelle</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => saveNameOrder('lastFirst')}
               className={`px-4 py-2 text-sm rounded-lg border transition ${nameOrder === 'lastFirst' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
               Nachname Vorname
@@ -119,7 +119,7 @@ export default function SettingsPage() {
               <p className="text-sm text-gray-500">Wählmethode für Click-to-Call</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => saveDialMethod('sip')}
               className={`px-4 py-2 text-sm rounded-lg border transition ${dialMethod === 'sip' ? 'bg-tc-blue/10 border-tc-blue/50 text-tc-dark font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
               Browser SIP
@@ -214,7 +214,7 @@ export default function SettingsPage() {
                 onChange={e => setPwCurrent(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input type="password" placeholder="Neues Passwort (min. 6)" value={pwNew}
                 onChange={e => setPwNew(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />

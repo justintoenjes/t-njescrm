@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { computeLeadPhase } from '@/lib/phase';
 import { calculateLeadScore, scoreToTemperature } from '@/lib/lead-score';
 import { TERMINAL_STAGES } from '@/lib/opportunity';
+import { isLeadOwner } from '@/lib/permissions';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -39,8 +40,6 @@ export async function GET(_: NextRequest, { params }: Ctx) {
   if (!template) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const isAdmin = session.user.role === 'ADMIN';
-  const isAssigned = template.assignedUsers.some(u => u.id === session.user.id);
-  const hasFullAccess = isAdmin || isAssigned || template.assignedUsers.length === 0;
 
   const daysWarm = parseInt(configs.find(c => c.key === 'days_warm')?.value ?? '14');
   const daysCold = parseInt(configs.find(c => c.key === 'days_cold')?.value ?? '30');
@@ -55,31 +54,26 @@ export async function GET(_: NextRequest, { params }: Ctx) {
     }
   }
 
-  const candidates = Array.from(leadMap.values()).map(({ lead, oppStage }) => {
-    const { _count, ...rest } = lead;
-    const activeOpps = rest.opportunities.filter((o: any) => !TERMINAL_STAGES.includes(o.stage));
-    const phase = computeLeadPhase({ ...rest, opportunities: rest.opportunities, _noteCount: _count.notes });
-    const score = calculateLeadScore(rest, activeOpps, phase, scoreConfig);
-    return {
-      ...rest,
-      phase,
-      score,
-      temperature: scoreToTemperature(score),
-      oppStage, // stage for THIS template's opportunity
-    };
-  });
+  // Candidates expose sensitive deal data (score, phase, opportunity stages/values).
+  // Non-admins only see candidates on leads they own — colleagues' candidates on the
+  // same template stay hidden, consistent with the per-lead ownership model.
+  const candidates = Array.from(leadMap.values())
+    .filter(({ lead }) => isLeadOwner(lead, session.user.id, isAdmin))
+    .map(({ lead, oppStage }) => {
+      const { _count, ...rest } = lead;
+      const activeOpps = rest.opportunities.filter((o: any) => !TERMINAL_STAGES.includes(o.stage));
+      const phase = computeLeadPhase({ ...rest, opportunities: rest.opportunities, _noteCount: _count.notes });
+      const score = calculateLeadScore(rest, activeOpps, phase, scoreConfig);
+      return {
+        ...rest,
+        phase,
+        score,
+        temperature: scoreToTemperature(score),
+        oppStage, // stage for THIS template's opportunity
+      };
+    });
 
   const { opportunities, ...templateData } = template;
-
-  if (!hasFullAccess) {
-    // Limited access: only metadata, no candidates/details
-    return NextResponse.json({
-      ...templateData,
-      candidateCount: candidates.length,
-      candidates: [],
-      restricted: true,
-    });
-  }
 
   return NextResponse.json({
     ...templateData,

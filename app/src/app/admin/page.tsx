@@ -406,7 +406,7 @@ export default function AdminPage() {
               <div className="pt-3 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Azure AD Gruppen (SSO)</p>
                 <p className="text-xs text-gray-400 mb-3">Group Object-IDs aus Azure Portal. Wenn leer, darf jeder Azure AD User sich anmelden.</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 font-medium">Admin-Gruppe</label>
                     <input value={azureGroupAdmin} onChange={e => setAzureGroupAdmin(e.target.value)}
@@ -465,7 +465,7 @@ export default function AdminPage() {
                       </div>
                     </div>
                     {resetUserId === u.id && (
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <input type="password" placeholder="Neues Passwort (min. 6 Zeichen)" value={resetPassword}
                           onChange={e => setResetPassword(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') resetUserPassword(u.id); }}
@@ -486,7 +486,7 @@ export default function AdminPage() {
 
               <div className="pt-2 border-t border-gray-100 space-y-3">
                 <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5"><UserPlus size={15} /> Neuer Benutzer</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input placeholder="Name *" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue" />
                   <input placeholder="E-Mail *" type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })}

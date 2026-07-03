@@ -425,7 +425,7 @@ export default function HomePage() {
                     </th>
                   )}
                   {[
-                    { key: 'score', label: 'Score', cls: 'w-20' },
+                    { key: 'score', label: 'Score', cls: 'w-16 sm:w-20' },
                     { key: 'name', label: 'Name', cls: '' },
                     ...(!isRecruiting ? [{ key: 'company', label: 'Firma', cls: 'hidden sm:table-cell' }] : []),
                     { key: 'phase', label: 'Phase', cls: '' },

@@ -88,7 +88,7 @@ function Column({ stage, opps, onOpen, onOpenLead }: { stage: OpportunityStage; 
   const totalValue = opps.reduce((sum, o) => sum + (o.value ?? 0), 0);
 
   return (
-    <div className="flex flex-col flex-1 min-w-[180px] max-w-[280px]">
+    <div className="flex flex-col flex-1 min-w-[80vw] max-w-[85vw] snap-center sm:min-w-[180px] sm:max-w-[280px] sm:snap-align-none">
       <div className={`rounded-t-lg border px-3 py-2 font-medium text-sm ${colorClass}`}>
         <div className="flex items-center justify-between">
           <span>{OPP_STAGE_LABELS[stage]}</span>
@@ -435,7 +435,7 @@ export default function PipelinePage() {
         {/* Create Opportunity Modal */}
         {showCreate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => e.target === e.currentTarget && resetCreateForm()}>
-            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold">{category === 'RECRUITING' ? 'Neue Bewerbung' : 'Neue Anfrage'}</h2>
                 <button onClick={resetCreateForm} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
@@ -621,7 +621,7 @@ export default function PipelinePage() {
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-4 overflow-x-auto pb-4">
+          <div className={`flex gap-3 sm:gap-4 overflow-x-auto pb-4 sm:snap-none ${activeId ? '' : 'snap-x snap-mandatory'}`}>
             {getStageOrder(category).map(stage => (
               <Column key={stage} stage={stage} opps={byStage(stage)} onOpen={setOpenOppId} onOpenLead={openLead} />
             ))}

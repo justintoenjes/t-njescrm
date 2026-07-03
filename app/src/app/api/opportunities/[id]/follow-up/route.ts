@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { openai, MODEL } from '@/lib/openai';
+import { isLeadOwner } from '@/lib/permissions';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   if (!opp) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const isAdmin = session.user.role === 'ADMIN';
-  if (!isAdmin && opp.assignedToId !== session.user.id) {
+  if (!isLeadOwner(opp, session.user.id, isAdmin)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

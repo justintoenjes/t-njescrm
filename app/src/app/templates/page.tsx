@@ -240,16 +240,16 @@ export default function TemplatesPage() {
               <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 {isRecruiting && <th className="px-3 py-3 w-8"></th>}
                 {[
-                  { key: 'name', label: 'Name' },
-                  { key: 'value', label: `${isRecruiting ? 'Gehalt' : 'Wert'} (€)` },
+                  { key: 'name', label: 'Name', cls: '' },
+                  { key: 'value', label: `${isRecruiting ? 'Gehalt' : 'Wert'} (€)`, cls: '' },
                   ...(isRecruiting
-                    ? [{ key: 'count', label: 'Kandidaten' }, { key: '', label: 'Phasen-Verteilung' }]
-                    : [{ key: 'count', label: 'Verwendet' }]
+                    ? [{ key: 'count', label: 'Kandidaten', cls: '' }, { key: '', label: 'Phasen-Verteilung', cls: 'hidden md:table-cell' }]
+                    : [{ key: 'count', label: 'Verwendet', cls: '' }]
                   ),
                 ].map(col => (
                   <th
                     key={col.label}
-                    className={`px-4 py-3 ${col.key ? 'cursor-pointer select-none hover:text-tc-dark transition' : ''}`}
+                    className={`px-4 py-3 ${col.cls} ${col.key ? 'cursor-pointer select-none hover:text-tc-dark transition' : ''}`}
                     onClick={col.key ? () => handleSort(col.key) : undefined}
                   >
                     <span className="flex items-center gap-1">
@@ -296,7 +296,7 @@ export default function TemplatesPage() {
                               <Users size={12} /> {t.candidateCount}
                             </span>
                           </td>
-                          <td className="px-4 py-3.5">
+                          <td className="px-4 py-3.5 hidden md:table-cell">
                             {renderPhaseDistribution(t.phaseDistribution)}
                           </td>
                         </>
@@ -329,9 +329,9 @@ export default function TemplatesPage() {
                                   <th className="px-3 py-2">Score</th>
                                   <th className="px-3 py-2">Kandidat</th>
                                   <th className="px-3 py-2">Status (Stelle)</th>
-                                  <th className="px-3 py-2">Phase (gesamt)</th>
-                                  <th className="px-3 py-2">Letzter Kontakt</th>
-                                  <th className="px-3 py-2">Zugewiesen</th>
+                                  <th className="px-3 py-2 hidden sm:table-cell">Phase (gesamt)</th>
+                                  <th className="px-3 py-2 hidden sm:table-cell">Letzter Kontakt</th>
+                                  <th className="px-3 py-2 hidden sm:table-cell">Zugewiesen</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -357,15 +357,15 @@ export default function TemplatesPage() {
                                         {OPP_STAGE_LABELS[c.oppStage as keyof typeof OPP_STAGE_LABELS] ?? c.oppStage}
                                       </span>
                                     </td>
-                                    <td className="px-3 py-2">
+                                    <td className="px-3 py-2 hidden sm:table-cell">
                                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PHASE_COLORS[c.phase] ?? ''}`}>
                                         {PHASE_LABELS[c.phase] ?? c.phase}
                                       </span>
                                     </td>
-                                    <td className="px-3 py-2 text-gray-500 text-xs">
+                                    <td className="px-3 py-2 text-gray-500 text-xs hidden sm:table-cell">
                                       {formatDate(c.lastContactedAt)}
                                     </td>
-                                    <td className="px-3 py-2 text-gray-500 text-xs">
+                                    <td className="px-3 py-2 text-gray-500 text-xs hidden sm:table-cell">
                                       {c.assignedTo?.name ?? '–'}
                                     </td>
                                   </tr>
@@ -390,7 +390,7 @@ export default function TemplatesPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={(e) => e.target === e.currentTarget && setShowForm(false)}
         >
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">{editId ? `${labelSingular} bearbeiten` : `${labelSingular} anlegen`}</h2>
               <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600">

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Search, Plus, Building2, Users, Briefcase, ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Plus, Building2, Users, Briefcase, ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Lock } from 'lucide-react';
 import Header from '@/components/Header';
 import CompanyDetailModal from '@/components/CompanyDetailModal';
 import LeadModal, { LeadFull } from '@/components/LeadModal';
@@ -23,22 +23,29 @@ type CompanyRow = {
   tempDistribution: { hot: number; warm: number; cold: number };
 };
 
+type CompanyLead = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  opportunities: { id: string; stage: string; value: number | null }[];
+} & (
+  | { restricted: true }
+  | {
+      restricted: false;
+      phase: LeadPhase;
+      score: number;
+      temperature: Temperature;
+      lastContactedAt: string | null;
+      assignedTo: { id: string; name: string } | null;
+    }
+);
+
 type CompanyDetail = {
   id: string;
   name: string;
-  leads: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string | null;
-    phone: string | null;
-    phase: LeadPhase;
-    score: number;
-    temperature: Temperature;
-    lastContactedAt: string | null;
-    assignedTo: { id: string; name: string } | null;
-    opportunities: { id: string; stage: string; value: number | null }[];
-  }[];
+  leads: CompanyLead[];
 };
 
 export default function CompaniesPage() {
@@ -160,14 +167,14 @@ export default function CompaniesPage() {
       <Header />
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-4">
         <div className="flex flex-wrap gap-3 items-center justify-between">
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-none min-w-0">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder="Firma suchen…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue w-52"
+              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue w-full sm:w-52"
             />
           </div>
           <button
@@ -184,16 +191,16 @@ export default function CompaniesPage() {
               <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 <th className="px-3 py-3 w-8"></th>
                 {[
-                  { key: 'name', label: 'Firma' },
-                  { key: 'leadCount', label: 'Kontakte' },
-                  { key: 'activeOppCount', label: 'Anfragen' },
-                  { key: 'pipelineValue', label: 'Pipeline-Wert' },
-                  { key: '', label: 'Beste Phase' },
-                  { key: '', label: 'Temperatur' },
+                  { key: 'name', label: 'Firma', cls: '' },
+                  { key: 'leadCount', label: 'Kontakte', cls: '' },
+                  { key: 'activeOppCount', label: 'Anfragen', cls: '' },
+                  { key: 'pipelineValue', label: 'Pipeline-Wert', cls: 'hidden sm:table-cell' },
+                  { key: '', label: 'Beste Phase', cls: 'hidden md:table-cell' },
+                  { key: '', label: 'Temperatur', cls: 'hidden md:table-cell' },
                 ].map(col => (
                   <th
                     key={col.label}
-                    className={`px-3 py-3 ${col.key ? 'cursor-pointer select-none hover:text-tc-dark transition' : ''}`}
+                    className={`px-3 py-3 ${col.cls} ${col.key ? 'cursor-pointer select-none hover:text-tc-dark transition' : ''}`}
                     onClick={col.key ? () => handleSort(col.key) : undefined}
                   >
                     <span className="flex items-center gap-1">
@@ -249,12 +256,12 @@ export default function CompaniesPage() {
                           <span className="text-xs text-gray-300">–</span>
                         )}
                       </td>
-                      <td className="px-3 py-3.5 text-gray-600">
+                      <td className="px-3 py-3.5 text-gray-600 hidden sm:table-cell">
                         {c.totalPipelineValue > 0
                           ? `${c.totalPipelineValue.toLocaleString('de-DE')} €`
                           : '–'}
                       </td>
-                      <td className="px-3 py-3.5">
+                      <td className="px-3 py-3.5 hidden md:table-cell">
                         {c.bestPhase ? (
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PHASE_COLORS[c.bestPhase] ?? ''}`}>
                             {PHASE_LABELS[c.bestPhase] ?? c.bestPhase}
@@ -263,7 +270,7 @@ export default function CompaniesPage() {
                           <span className="text-xs text-gray-300">–</span>
                         )}
                       </td>
-                      <td className="px-3 py-3.5">
+                      <td className="px-3 py-3.5 hidden md:table-cell">
                         {c.leadCount > 0 ? (
                           <div className="flex items-center gap-1.5">
                             {c.tempDistribution.hot > 0 && (
@@ -301,14 +308,27 @@ export default function CompaniesPage() {
                                 <tr className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">
                                   <th className="px-3 py-2">Score</th>
                                   <th className="px-3 py-2">Name</th>
-                                  <th className="px-3 py-2">Phase</th>
+                                  <th className="px-3 py-2 hidden sm:table-cell">Phase</th>
                                   <th className="px-3 py-2">Anfragen</th>
-                                  <th className="px-3 py-2">Letzter Kontakt</th>
-                                  <th className="px-3 py-2">Zugewiesen</th>
+                                  <th className="px-3 py-2 hidden sm:table-cell">Letzter Kontakt</th>
+                                  <th className="px-3 py-2 hidden sm:table-cell">Zugewiesen</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {expandedData?.leads.map((lead) => {
+                                  if (lead.restricted) {
+                                    return (
+                                      <tr key={lead.id} className="border-b border-gray-100 last:border-0">
+                                        <td className="px-3 py-2">
+                                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-300">
+                                            <Lock size={12} />
+                                          </span>
+                                        </td>
+                                        <td className="px-3 py-2 font-medium text-gray-900">{`${lead.firstName} ${lead.lastName}`.trim()}</td>
+                                        <td className="px-3 py-2 text-xs text-gray-400" colSpan={4}>Bei Kolleg:in — Details nicht sichtbar</td>
+                                      </tr>
+                                    );
+                                  }
                                   const activeOpps = lead.opportunities.filter((o: any) => !['WON', 'LOST', 'HIRED', 'REJECTED'].includes(o.stage));
                                   return (
                                     <tr
@@ -322,7 +342,7 @@ export default function CompaniesPage() {
                                         </span>
                                       </td>
                                       <td className="px-3 py-2 font-medium text-gray-900">{`${lead.firstName} ${lead.lastName}`.trim()}</td>
-                                      <td className="px-3 py-2">
+                                      <td className="px-3 py-2 hidden sm:table-cell">
                                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PHASE_COLORS[lead.phase] ?? ''}`}>
                                           {PHASE_LABELS[lead.phase] ?? lead.phase}
                                         </span>
@@ -336,10 +356,10 @@ export default function CompaniesPage() {
                                           <span className="text-xs text-gray-300">–</span>
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-gray-500 text-xs">
+                                      <td className="px-3 py-2 text-gray-500 text-xs hidden sm:table-cell">
                                         {formatDate(lead.lastContactedAt)}
                                       </td>
-                                      <td className="px-3 py-2 text-gray-500 text-xs">
+                                      <td className="px-3 py-2 text-gray-500 text-xs hidden sm:table-cell">
                                         {lead.assignedTo?.name ?? '–'}
                                       </td>
                                     </tr>

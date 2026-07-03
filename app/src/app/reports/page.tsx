@@ -104,8 +104,8 @@ function PipelineTable({ rows, total, isRecruiting }: { rows: PipelineRow[]; tot
             <th className="py-2 font-medium">Stage</th>
             <th className="py-2 font-medium text-right">Anzahl</th>
             {!isRecruiting && <th className="py-2 font-medium text-right">Wert</th>}
-            {!isRecruiting && <th className="py-2 font-medium text-right">Gewichtet</th>}
-            <th className="py-2 font-medium text-right">Gewicht</th>
+            {!isRecruiting && <th className="py-2 font-medium text-right hidden sm:table-cell">Gewichtet</th>}
+            <th className="py-2 font-medium text-right hidden sm:table-cell">Gewicht</th>
           </tr>
         </thead>
         <tbody>
@@ -116,8 +116,8 @@ function PipelineTable({ rows, total, isRecruiting }: { rows: PipelineRow[]; tot
               </td>
               <td className="py-2.5 text-right text-gray-700">{row.count}</td>
               {!isRecruiting && <td className="py-2.5 text-right text-gray-700">{fmt(row.value)}</td>}
-              {!isRecruiting && <td className="py-2.5 text-right font-medium text-tc-dark">{fmt(row.weighted)}</td>}
-              <td className="py-2.5 text-right text-gray-400">{STAGE_WEIGHT_LABELS[row.stage] ?? '–'}</td>
+              {!isRecruiting && <td className="py-2.5 text-right font-medium text-tc-dark hidden sm:table-cell">{fmt(row.weighted)}</td>}
+              <td className="py-2.5 text-right text-gray-400 hidden sm:table-cell">{STAGE_WEIGHT_LABELS[row.stage] ?? '–'}</td>
             </tr>
           ))}
         </tbody>
@@ -127,8 +127,8 @@ function PipelineTable({ rows, total, isRecruiting }: { rows: PipelineRow[]; tot
               <td className="py-2.5">Gesamt</td>
               <td className="py-2.5 text-right">{rows.reduce((s, r) => s + r.count, 0)}</td>
               <td className="py-2.5 text-right">{fmt(total.value)}</td>
-              <td className="py-2.5 text-right text-tc-dark">{fmt(total.weighted)}</td>
-              <td />
+              <td className="py-2.5 text-right text-tc-dark hidden sm:table-cell">{fmt(total.weighted)}</td>
+              <td className="hidden sm:table-cell" />
             </tr>
           </tfoot>
         )}

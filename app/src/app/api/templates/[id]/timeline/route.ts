@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { isLeadOwner } from '@/lib/permissions';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -13,23 +14,19 @@ export async function GET(_: NextRequest, { params }: Ctx) {
   const template = await prisma.productTemplate.findUnique({
     where: { id },
     select: {
-      assignedUsers: { select: { id: true } },
       opportunities: {
-        select: { id: true, leadId: true },
+        select: { id: true, leadId: true, lead: { select: { assignedToId: true } } },
       },
     },
   });
   if (!template) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Access check: only assigned users, admins, or if no users assigned
+  // Notes/emails are sensitive, deal-related activity — scope to leads the user
+  // owns (or admin). Notes on other reps' candidates stay hidden.
   const isAdmin = session.user.role === 'ADMIN';
-  const isAssigned = template.assignedUsers.some(u => u.id === session.user.id);
-  if (!isAdmin && !isAssigned && template.assignedUsers.length > 0) {
-    return NextResponse.json({ notes: [], emails: [] });
-  }
-
-  const oppIds = template.opportunities.map(o => o.id);
-  const leadIds = Array.from(new Set(template.opportunities.map(o => o.leadId)));
+  const visibleOpps = template.opportunities.filter(o => isLeadOwner({ assignedToId: o.lead?.assignedToId ?? null }, session.user.id, isAdmin));
+  const oppIds = visibleOpps.map(o => o.id);
+  const leadIds = Array.from(new Set(visibleOpps.map(o => o.leadId).filter((x): x is string => !!x)));
 
   if (oppIds.length === 0) {
     return NextResponse.json({ notes: [], emails: [] });

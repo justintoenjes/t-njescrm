@@ -83,7 +83,7 @@ function CallRow({
   }
 
   return (
-    <div className={`flex items-center gap-3 py-3 px-4 hover:bg-gray-50 transition ${!call.seen ? 'bg-tc-blue/5' : ''}`}>
+    <div className={`flex items-center gap-2 sm:gap-3 py-3 px-3 sm:px-4 hover:bg-gray-50 transition ${!call.seen ? 'bg-tc-blue/5' : ''}`}>
       {/* Icon */}
       <div className={`p-2 rounded-full shrink-0 ${
         isMissed ? 'bg-red-100' :
@@ -177,7 +177,7 @@ function CallRow({
       )}
 
       {/* Duration */}
-      <div className="flex items-center gap-1 text-xs text-gray-400 shrink-0">
+      <div className="hidden sm:flex items-center gap-1 text-xs text-gray-400 shrink-0">
         <Clock size={12} />
         {formatDuration(call.duration)}
       </div>
@@ -267,19 +267,19 @@ export default function CallsPage() {
   return (
     <div className="min-h-screen bg-gray-100">
       <Header />
-      <main className="max-w-3xl mx-auto p-6">
+      <main className="max-w-3xl mx-auto p-4 sm:p-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold text-gray-900">Anrufe</h1>
           <span className="text-sm text-gray-400">{total} Anrufe</span>
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex items-center gap-1 mb-4 bg-white rounded-lg border border-gray-200 p-1 w-fit">
+        <div className="flex items-center gap-1 mb-4 bg-white rounded-lg border border-gray-200 p-1 w-fit max-w-full overflow-x-auto">
           {FILTERS.map(f => (
             <button
               key={f.key}
               onClick={() => { setFilter(f.key); setPage(1); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap
                 ${filter === f.key ? 'bg-tc-dark text-white' : 'text-gray-500 hover:bg-gray-50'}`}
             >
               {f.icon}
