@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Save, Trash2, Users, Briefcase, Building2, Trophy, XCircle, Plus, FileText, Mail } from 'lucide-react';
+import { X, Save, Trash2, Users, Briefcase, Building2, Trophy, XCircle, Plus, FileText, Mail, Lock } from 'lucide-react';
 import { TEMP_COLORS, Temperature } from '@/lib/temperature';
 import { PHASE_LABELS, PHASE_COLORS, LeadPhase } from '@/lib/phase';
 import { OPP_STAGE_LABELS, OPP_STAGE_COLORS, TERMINAL_STAGES } from '@/lib/opportunity';
@@ -17,9 +17,10 @@ type LeadSummary = {
   lastName: string;
   email: string | null;
   phone: string | null;
-  phase: LeadPhase;
-  score: number;
-  temperature: Temperature;
+  restricted: boolean;
+  phase?: LeadPhase;
+  score?: number;
+  temperature?: Temperature;
   opportunities: {
     id: string;
     title: string;
@@ -132,9 +133,9 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
     setCompany(data);
     setForm({ name: data.name, website: data.website ?? '' });
 
-    // Build note targets
+    // Build note targets (restricted leads belong to a colleague — no notes here)
     const targets: NoteTarget[] = [];
-    data.leads.forEach(l => {
+    data.leads.filter(l => !l.restricted).forEach(l => {
       const lName = `${l.firstName} ${l.lastName}`.trim();
       targets.push({ type: 'lead', label: lName, id: l.id });
       l.opportunities
@@ -358,6 +359,18 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
                             <p className="text-sm text-gray-400 text-center py-4">Keine Kontakte</p>
                           )}
                           {company?.leads.map(lead => {
+                            if (lead.restricted) {
+                              return (
+                                <div key={lead.id} className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900">{`${lead.firstName} ${lead.lastName}`.trim()}</p>
+                                    <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400">
+                                      <Lock size={11} /> Bei Kolleg:in — Details nicht sichtbar
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
                             const leadActiveOpps = lead.opportunities.filter(o => !TERMINAL_STAGES.includes(o.stage as any));
                             return (
                               <div
@@ -368,11 +381,11 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-gray-900">{`${lead.firstName} ${lead.lastName}`.trim()}</p>
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${TEMP_COLORS[lead.temperature]}`}>
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${TEMP_COLORS[lead.temperature!]}`}>
                                       {lead.score}
                                     </span>
-                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PHASE_COLORS[lead.phase]}`}>
-                                      {PHASE_LABELS[lead.phase]}
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PHASE_COLORS[lead.phase!]}`}>
+                                      {PHASE_LABELS[lead.phase!]}
                                     </span>
                                     {leadActiveOpps.length > 0 && (
                                       <span className="text-xs text-teal-600">{leadActiveOpps.length} Anfr.</span>

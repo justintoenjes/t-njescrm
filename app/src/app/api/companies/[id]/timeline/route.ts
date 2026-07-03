@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { isLeadOwner } from '@/lib/permissions';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -17,11 +18,8 @@ export async function GET(_: NextRequest, { params }: Ctx) {
   if (!company) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const isAdmin = session.user.role === 'ADMIN';
-  if (!isAdmin && !company.leads.some(l => l.assignedToId === session.user.id)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const leadIds = company.leads.map(l => l.id);
+  // Notes/emails are the sensitive, deal-related activity — only for own leads (or admin).
+  const leadIds = company.leads.filter(l => isLeadOwner(l, session.user.id, isAdmin)).map(l => l.id);
   if (leadIds.length === 0) {
     return NextResponse.json({ notes: [], emails: [] });
   }

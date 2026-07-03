@@ -44,6 +44,11 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   ]);
   if (!opp) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  const isAdmin = session.user.role === 'ADMIN';
+  if (!isAdmin && opp.assignedToId !== session.user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   // Build unified timeline from opp notes + lead emails
   const activities: ActivityEntry[] = [];
 

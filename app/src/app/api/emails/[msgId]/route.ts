@@ -65,7 +65,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   });
 }
 
-// PATCH: Hide/unhide an email — any user can hide their own synced emails
+// PATCH: Hide/unhide an email — only for own leads' emails (or admin)
 export async function PATCH(request: NextRequest, { params }: Ctx) {
   const { msgId } = await params;
   const session = await getServerSession(authOptions);
@@ -76,8 +76,12 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   const { isHidden } = body;
   if (typeof isHidden !== 'boolean') return NextResponse.json({ error: 'isHidden required' }, { status: 400 });
 
+  const isAdmin = session.user.role === 'ADMIN';
   const email = await prisma.email.findFirst({
-    where: { OR: [{ graphMessageId: msgId }, { id: msgId }] },
+    where: {
+      OR: [{ graphMessageId: msgId }, { id: msgId }],
+      ...(isAdmin ? {} : { lead: { assignedToId: session.user.id } }),
+    },
   });
   if (!email) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 

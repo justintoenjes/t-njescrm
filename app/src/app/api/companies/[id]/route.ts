@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { computeLeadPhase } from '@/lib/phase';
 import { calculateLeadScore, scoreToTemperature } from '@/lib/lead-score';
+import { isLeadOwner } from '@/lib/permissions';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -41,18 +42,28 @@ export async function GET(_: NextRequest, { params }: Ctx) {
   if (!company) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const isAdmin = session.user.role === 'ADMIN';
-  // Non-admins can only see companies where they have at least one assigned lead
-  if (!isAdmin && !company.leads.some(l => l.assignedToId === session.user.id)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
   const scoreConfig = { daysWarm: config.daysWarm, daysCold: config.daysCold };
 
-  const leads = company.leads.map(({ _count, ...lead }) => {
-    const activeOpps = lead.opportunities.filter(o => o.stage !== 'WON' && o.stage !== 'LOST');
-    const phase = computeLeadPhase({ ...lead, opportunities: lead.opportunities, _noteCount: _count.notes });
+  // Every authenticated user can see the company as a shared contact directory (avoids
+  // duplicate contact creation), but only their own leads expose opportunities/scoring —
+  // that's the sensitive, deal-related data.
+  const leads = company.leads.map(({ _count, opportunities, ...lead }) => {
+    if (!isLeadOwner(lead, session.user.id, isAdmin)) {
+      return {
+        id: lead.id,
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        email: lead.email,
+        phone: lead.phone,
+        category: lead.category,
+        restricted: true as const,
+        opportunities: [] as typeof opportunities,
+      };
+    }
+    const activeOpps = opportunities.filter(o => o.stage !== 'WON' && o.stage !== 'LOST');
+    const phase = computeLeadPhase({ ...lead, opportunities, _noteCount: _count.notes });
     const score = calculateLeadScore(lead, activeOpps, phase, scoreConfig);
-    return { ...lead, phase, score, temperature: scoreToTemperature(score) };
+    return { ...lead, opportunities, phase, score, temperature: scoreToTemperature(score), restricted: false as const };
   });
 
   const allActiveOpps = leads.flatMap(l => l.opportunities.filter(o => o.stage !== 'WON' && o.stage !== 'LOST'));
