@@ -14,7 +14,7 @@
 - Synct zusätzlich: nginx.conf, certs, callmonitor
 
 ## Server
-- **Host:** microcrm (192.168.178.162) — SSH via VPN
+- **Host:** microcrm (172.20.20.26) — SSH via VPN „Büro"; Netz wurde von 192.168.178.x auf 172.20.20.x umnummeriert (Juli 2026), Fritzbox = 172.20.20.1
 - **SSH User:** jutoenje
 - **SSH Key Passphrase:** Soomer9-6
 

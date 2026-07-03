@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 // Config from env
-const FRITZ_HOST = process.env.FRITZBOX_HOST || '192.168.178.1';
+const FRITZ_HOST = process.env.FRITZBOX_HOST || '172.20.20.1';
 const FRITZ_PORT = 1012;
 const FRITZ_USER = process.env.FRITZBOX_USER || '';
 const FRITZ_PASS = process.env.FRITZBOX_PASSWORD || '';

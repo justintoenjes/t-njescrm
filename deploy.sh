@@ -2,7 +2,7 @@
 set -e
 
 # MicroCRM Deploy Script
-# Deployt die App auf microcrm (192.168.178.162)
+# Deployt die App auf microcrm (172.20.20.26)
 # Container werden via Podman Quadlets (systemd) verwaltet
 
 DEPLOY_LIB="$(cd "$(dirname "$0")/.." && pwd)/deploy-lib.sh"
