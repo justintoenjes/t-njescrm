@@ -101,14 +101,14 @@ function CallRow({
           <>
             <button
               onClick={() => onOpenLead(call.lead!.id)}
-              className={`text-sm font-medium hover:underline transition ${isMissed ? 'text-red-700' : 'text-gray-900'}`}
+              className={`inline-block max-w-full truncate align-bottom text-sm font-medium hover:underline transition ${isMissed ? 'text-red-700' : 'text-gray-900'}`}
             >
               {leadName}
             </button>
             {call.lead?.companyRef?.name && (
               <span className="text-xs text-gray-400 ml-2">{call.lead.companyRef.name}</span>
             )}
-            <p className="text-xs text-gray-400">{cleanNum}</p>
+            <p className="text-xs text-gray-400 truncate">{cleanNum}</p>
           </>
         ) : editing ? (
           <div className="flex items-center gap-1.5">
@@ -142,13 +142,13 @@ function CallRow({
           </div>
         ) : call.label ? (
           <>
-            <p className={`text-sm font-medium ${isMissed ? 'text-red-700' : 'text-gray-900'}`}>
+            <p className={`text-sm font-medium truncate ${isMissed ? 'text-red-700' : 'text-gray-900'}`}>
               {call.label}
             </p>
-            <p className="text-xs text-gray-400">{cleanNum}</p>
+            <p className="text-xs text-gray-400 truncate">{cleanNum}</p>
           </>
         ) : (
-          <p className={`text-sm font-medium ${isMissed ? 'text-red-700' : 'text-gray-900'}`}>
+          <p className={`text-sm font-medium truncate ${isMissed ? 'text-red-700' : 'text-gray-900'}`}>
             {cleanNum}
           </p>
         )}
@@ -183,7 +183,7 @@ function CallRow({
       </div>
 
       {/* Time */}
-      <div className="text-right shrink-0 w-20">
+      <div className="text-right shrink-0 w-16 sm:w-20">
         <p className="text-xs text-gray-500">{date}</p>
         <p className="text-xs text-gray-400">{time}</p>
       </div>

@@ -53,14 +53,15 @@ export default function Header() {
 
   return (
     <header className="bg-tc-dark sticky top-0 z-30 pt-[env(safe-area-inset-top)] max-w-[100vw]">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 flex items-center h-14 gap-2 sm:gap-4">
+      {/* Mobile (<md): zwei Zeilen — 1. Logo + Aktionen, 2. Toggle + Nav. Ab md: eine Zeile. */}
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 flex flex-wrap items-center md:h-14 gap-x-2 sm:gap-x-4 gap-y-1.5 py-2 md:py-0">
         {/* Logo */}
-        <Link href="/" className="shrink-0">
+        <Link href="/" className="shrink-0 order-1">
           <img src="/logo-crm.svg" alt="Tönjes CRM" className="h-9 sm:h-10 w-auto" />
         </Link>
 
         {/* Category Toggle */}
-        <div className="flex items-center bg-white/10 rounded-lg p-0.5 shrink-0">
+        <div className="flex items-center bg-white/10 rounded-lg p-0.5 shrink-0 order-5 md:order-2">
           <button
             onClick={() => setCategory('VERTRIEB')}
             className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap
@@ -70,8 +71,7 @@ export default function Header() {
               }`}
           >
             <Briefcase size={13} />
-            <span className="hidden sm:inline">Vertrieb</span>
-            <span className="sm:hidden">V</span>
+            <span>Vertrieb</span>
           </button>
           <button
             onClick={() => setCategory('RECRUITING')}
@@ -82,13 +82,12 @@ export default function Header() {
               }`}
           >
             <UserSearch size={13} />
-            <span className="hidden sm:inline">Recruiting</span>
-            <span className="sm:hidden">R</span>
+            <span>Recruiting</span>
           </button>
         </div>
 
         {/* Nav Tabs */}
-        <nav className="flex items-center gap-1 shrink-0">
+        <nav className="flex items-center gap-1 shrink-0 order-6 md:order-3">
           {NAV_ITEMS
             .filter(item => (!item.vertriebOnly || category === 'VERTRIEB') && (!item.recruitingOnly || category === 'RECRUITING'))
             .map(({ href, label, icon: Icon }) => {
@@ -104,7 +103,7 @@ export default function Header() {
                   }`}
               >
                 <Icon size={15} />
-                <span className="hidden md:inline">{label}</span>
+                <span className="hidden lg:inline">{label}</span>
               </Link>
             );
           })}
@@ -120,15 +119,15 @@ export default function Header() {
               }`}
           >
             <BarChart3 size={15} />
-            <span className="hidden md:inline">Reports</span>
+            <span className="hidden lg:inline">Reports</span>
           </Link>
         </nav>
 
         {/* Spacer */}
-        <div className="flex-1" />
+        <div className="flex-1 order-2 md:order-4" />
 
         {/* Right section: Create + Search + User + Admin + Logout */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0 order-3 md:order-5">
           {/* Create Dropdown */}
           <div ref={createRef} className="relative">
             <button
@@ -235,6 +234,9 @@ export default function Header() {
             <LogOut size={15} />
           </button>
         </div>
+
+        {/* Umbruch: erzwingt auf Mobile die zweite Zeile */}
+        <div className="basis-full h-0 order-4 md:hidden" />
       </div>
     </header>
   );
