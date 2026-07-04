@@ -134,6 +134,15 @@ ENVEOF
 else
   echo "  ✓ Already configured"
 fi
+# ── Fritzbox-IP aktuell halten (Büro-Netz umnummeriert auf 172.20.20.x) ────
+FRITZBOX_IP="172.20.20.1"
+ENV_FIXED=false
+if ssh "$REMOTE" "sudo -u $REMOTE_USER grep -q '^FRITZBOX_HOST=' $ENV_FILE 2>/dev/null" \
+   && ! ssh "$REMOTE" "sudo -u $REMOTE_USER grep -qx 'FRITZBOX_HOST=$FRITZBOX_IP' $ENV_FILE 2>/dev/null"; then
+  echo "  Fixing FRITZBOX_HOST -> $FRITZBOX_IP"
+  ssh "$REMOTE" "sudo -u $REMOTE_USER sed -i 's|^FRITZBOX_HOST=.*|FRITZBOX_HOST=$FRITZBOX_IP|' $ENV_FILE"
+  ENV_FIXED=true
+fi
 deploy_timer "env check"
 
 # ── Build ────────────────────────────────────────────────────────────────────
@@ -156,7 +165,7 @@ remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-app.service"
 wait_for_service "microcrm-app.service" 30
 deploy_timer "restart app"
 
-if [ "$CALLMONITOR_CHANGED" = true ]; then
+if [ "$CALLMONITOR_CHANGED" = true ] || [ "$ENV_FIXED" = true ]; then
   remote_restart_sudo "$SSH_CMD" "$REMOTE_USER" "microcrm-callmonitor.service"
   wait_for_service "microcrm-callmonitor.service" 20
   deploy_timer "restart callmonitor"
