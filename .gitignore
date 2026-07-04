@@ -9,3 +9,5 @@ app/tsconfig.tsbuildinfo
 .deploy-timing.log
 .deploy-stats
 to-do.txt
+.callmonitor-hash
+.sip-gateway-hash
