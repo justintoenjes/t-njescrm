@@ -416,10 +416,42 @@ export function useSipClient(enabled: boolean) {
     const target = UserAgent.makeURI(`sip:${number}@fritz.box`);
     if (!target) return;
 
-    const inviter = new Inviter(ua, target);
-    setState(s => ({ ...s, callState: 'calling', callDirection: 'outgoing', remoteNumber: number }));
-    bindSession(inviter, 'outgoing');
-    inviter.invite();
+    setState(s => ({ ...s, callState: 'calling', callDirection: 'outgoing', remoteNumber: number, error: null }));
+
+    // Pre-check microphone permission (critical on iOS Safari/PWA)
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      .then((stream) => {
+        // Stop the test stream immediately — sip.js will acquire its own
+        stream.getTracks().forEach(t => t.stop());
+
+        const inviter = new Inviter(ua, target);
+        bindSession(inviter, 'outgoing');
+        inviter.invite({
+          sessionDescriptionHandlerOptions: {
+            constraints: { audio: true, video: false },
+          },
+          sessionDescriptionHandlerModifiers: [sdpCleanModifier],
+        }).catch((err: unknown) => {
+          console.error('[SIP] invite() failed:', err);
+          setState(s => ({
+            ...s,
+            callState: 'idle',
+            callDirection: null,
+            remoteNumber: null,
+            error: err instanceof Error ? err.message : 'Anruf fehlgeschlagen',
+          }));
+        });
+      })
+      .catch((err: unknown) => {
+        console.error('[SIP] Microphone permission denied:', err);
+        setState(s => ({
+          ...s,
+          callState: 'idle',
+          callDirection: null,
+          remoteNumber: null,
+          error: 'Mikrofon-Zugriff verweigert – Bitte Berechtigung in den Einstellungen aktivieren',
+        }));
+      });
   }, [state.callState, bindSession]);
 
   const answer = useCallback(() => {
