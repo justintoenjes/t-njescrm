@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   // Not cached — fetch from Graph
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token?.accessToken) {
-    return NextResponse.json({ error: 'Keine Microsoft-Verbindung' }, { status: 403 });
+    return NextResponse.json({ error: 'Keine Microsoft-Verbindung. Bitte mit Microsoft anmelden.' }, { status: 403 });
   }
 
   const graphId = cached?.graphMessageId ?? msgId;
@@ -43,7 +43,20 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     headers: { Authorization: `Bearer ${token.accessToken}` },
   });
 
-  if (!res.ok) return NextResponse.json({ error: 'E-Mail nicht gefunden' }, { status: res.status });
+  if (!res.ok) {
+    if (res.status === 401) {
+      return NextResponse.json({ error: 'Microsoft-Token abgelaufen. Bitte neu anmelden.' }, { status: 401 });
+    }
+    if (res.status === 404 && cached) {
+      // Graph looks in the current user's mailbox — mails synced by a colleague live in
+      // theirs. The content appears once the mailbox owner opens the lead again (sync
+      // now persists bodies).
+      return NextResponse.json({
+        error: 'Inhalt liegt im Postfach eines anderen Benutzers und wurde noch nicht synchronisiert.',
+      }, { status: 404 });
+    }
+    return NextResponse.json({ error: 'E-Mail nicht gefunden' }, { status: res.status });
+  }
 
   const msg = await res.json();
   const bodyHtml = msg.body?.content ?? '';

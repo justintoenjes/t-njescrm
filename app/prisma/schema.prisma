@@ -46,6 +46,15 @@ model Company {
   website   String?
   createdAt DateTime @default(now())
   leads     Lead[]
+  tags      Tag[]
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  color     String    @default("gray")
+  createdAt DateTime  @default(now())
+  companies Company[]
 }
 
 model Lead {

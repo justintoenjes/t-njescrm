@@ -26,6 +26,7 @@ export type GroupEmail = {
   isRead: boolean;
   hasAttachments: boolean;
   direction: 'INBOUND' | 'OUTBOUND';
+  isHidden: boolean;
   contextLabel: string | null;
 };
 

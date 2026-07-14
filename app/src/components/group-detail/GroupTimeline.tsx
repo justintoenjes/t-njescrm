@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, Phone, Paperclip } from 'lucide-react';
+import { Phone, Paperclip, Eye, EyeOff } from 'lucide-react';
 import { NoteContent } from '@/components/NoteContent';
+import EmailDirectionIcon, { EmailDirectionLabel } from '@/components/EmailDirectionIcon';
 import type { GroupActivity, GroupNote, GroupEmail, TimelineFilter } from './types';
 
 const FILTERS: { key: TimelineFilter; label: string }[] = [
@@ -47,27 +48,36 @@ function NoteEntry({ note }: { note: GroupNote }) {
   );
 }
 
-function EmailEntry({ email }: { email: GroupEmail }) {
+function EmailEntry({ email, onHideEmail, onUnhideEmail }: {
+  email: GroupEmail;
+  onHideEmail?: (emailId: string) => void;
+  onUnhideEmail?: (emailId: string) => void;
+}) {
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailBody, setEmailBody] = useState<string | null>(null);
   const [emailBodyLoading, setEmailBodyLoading] = useState(false);
+  const [emailBodyError, setEmailBodyError] = useState<string | null>(null);
   const isIncoming = email.direction === 'INBOUND';
 
   async function loadEmailBody() {
-    if (emailOpen) { setEmailOpen(false); setEmailBody(null); return; }
+    if (emailOpen) { setEmailOpen(false); setEmailBody(null); setEmailBodyError(null); return; }
     setEmailOpen(true);
     setEmailBody(null);
+    setEmailBodyError(null);
     setEmailBodyLoading(true);
-    const res = await fetch(`/api/emails/${email.graphMessageId}`);
-    if (res.ok) {
-      const data = await res.json();
-      setEmailBody(data.bodyHtml);
+    try {
+      const res = await fetch(`/api/emails/${email.graphMessageId}`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.bodyHtml) setEmailBody(data.bodyHtml);
+      else setEmailBodyError(data.error ?? 'E-Mail konnte nicht geladen werden');
+    } catch {
+      setEmailBodyError('E-Mail konnte nicht geladen werden');
     }
     setEmailBodyLoading(false);
   }
 
   return (
-    <>
+    <div className="group">
       <button
         onClick={loadEmailBody}
         className={`w-full text-left rounded-lg px-4 py-3 transition hover:bg-gray-50 ${emailOpen ? 'bg-tc-blue/5 border border-tc-blue/20' : 'bg-gray-50'}`}
@@ -82,8 +92,9 @@ function EmailEntry({ email }: { email: GroupEmail }) {
             <p className={`text-sm truncate ${!email.isRead ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
               {email.subject || '(Kein Betreff)'}
             </p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {isIncoming ? `Von ${email.from ?? email.fromEmail}` : `An ${email.to}`}
+            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5 min-w-0">
+              <EmailDirectionLabel direction={email.direction} />
+              <span className="truncate">{isIncoming ? `Von ${email.from ?? email.fromEmail}` : `An ${email.to}`}</span>
             </p>
             {!emailOpen && (
               <p className="text-xs text-gray-400 mt-1 truncate">{email.preview}</p>
@@ -94,6 +105,27 @@ function EmailEntry({ email }: { email: GroupEmail }) {
             <span className="text-[11px] text-gray-400">
               {new Date(email.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
             </span>
+            {email.isHidden ? (
+              onUnhideEmail && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onUnhideEmail(email.id); }}
+                  className="text-gray-400 hover:text-tc-blue transition ml-1"
+                  title="E-Mail wieder einblenden"
+                >
+                  <Eye size={12} />
+                </button>
+              )
+            ) : (
+              onHideEmail && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onHideEmail(email.id); }}
+                  className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition ml-1"
+                  title="E-Mail ausblenden"
+                >
+                  <EyeOff size={12} />
+                </button>
+              )
+            )}
           </div>
         </div>
       </button>
@@ -107,11 +139,11 @@ function EmailEntry({ email }: { email: GroupEmail }) {
               dangerouslySetInnerHTML={{ __html: emailBody }}
             />
           ) : (
-            <p className="text-sm text-gray-400">E-Mail konnte nicht geladen werden</p>
+            <p className="text-sm text-amber-700">{emailBodyError ?? 'E-Mail konnte nicht geladen werden'}</p>
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -120,9 +152,13 @@ const CALL_PATTERN = /^(Eingehender|Ausgehender) Anruf/;
 type Props = {
   activities: GroupActivity[];
   loading?: boolean;
+  showHiddenEmails?: boolean;
+  onToggleHiddenEmails?: () => void;
+  onHideEmail?: (emailId: string) => void;
+  onUnhideEmail?: (emailId: string) => void;
 };
 
-export default function GroupTimeline({ activities, loading }: Props) {
+export default function GroupTimeline({ activities, loading, showHiddenEmails, onToggleHiddenEmails, onHideEmail, onUnhideEmail }: Props) {
   const [filter, setFilter] = useState<TimelineFilter>('all');
 
   const filtered = filter === 'all'
@@ -143,7 +179,7 @@ export default function GroupTimeline({ activities, loading }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex gap-1 mb-4">
+      <div className="flex gap-1 mb-4 flex-wrap">
         {FILTERS.map(f => (
           <button
             key={f.key}
@@ -161,6 +197,16 @@ export default function GroupTimeline({ activities, loading }: Props) {
             )}
           </button>
         ))}
+        {onToggleHiddenEmails && (
+          <button
+            onClick={onToggleHiddenEmails}
+            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition
+              ${showHiddenEmails ? 'bg-tc-dark text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'}`}
+            title={showHiddenEmails ? 'Ausgeblendete E-Mails verbergen' : 'Ausgeblendete E-Mails anzeigen'}
+          >
+            {showHiddenEmails ? <Eye size={12} /> : <EyeOff size={12} />}
+          </button>
+        )}
       </div>
 
       {loading && (
@@ -207,17 +253,14 @@ export default function GroupTimeline({ activities, loading }: Props) {
           }
 
           if (activity.type === 'email') {
-            const isIncoming = activity.email.direction === 'INBOUND';
             return (
-              <div key={`email-${activity.id}`} className="flex gap-3">
+              <div key={`email-${activity.id}`} className={`flex gap-3 ${activity.email.isHidden ? 'opacity-50' : ''}`}>
                 <div className="flex flex-col items-center">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isIncoming ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                    <Mail size={14} className={isIncoming ? 'text-blue-600' : 'text-gray-500'} />
-                  </div>
+                  <EmailDirectionIcon direction={activity.email.direction} />
                   <div className="w-px flex-1 bg-gray-100 mt-1" />
                 </div>
                 <div className="flex-1 pb-4 min-w-0">
-                  <EmailEntry email={activity.email} />
+                  <EmailEntry email={activity.email} onHideEmail={onHideEmail} onUnhideEmail={onUnhideEmail} />
                 </div>
               </div>
             );

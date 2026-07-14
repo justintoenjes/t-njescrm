@@ -21,12 +21,17 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search') ?? '';
+  const tagId = searchParams.get('tag') ?? '';
 
   const [companies, configs] = await Promise.all([
     prisma.company.findMany({
-      where: search ? { name: { contains: search, mode: 'insensitive' } } : {},
+      where: {
+        ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+        ...(tagId ? { tags: { some: { id: tagId } } } : {}),
+      },
       include: {
         _count: { select: { leads: true } },
+        tags: { select: { id: true, name: true, color: true }, orderBy: { name: 'asc' } },
         leads: {
           include: {
             opportunities: {

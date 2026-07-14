@@ -20,26 +20,13 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  const includeHidden = new URL(request.url).searchParams.get('includeHidden') === '1';
   const emails = await prisma.email.findMany({
-    where: { leadId: id, isHidden: false },
+    where: { leadId: id, ...(includeHidden ? {} : { isHidden: false }) },
     orderBy: { receivedAt: 'desc' },
   });
 
-  return NextResponse.json({
-    emails: emails.map(e => ({
-      id: e.id,
-      graphMessageId: e.graphMessageId,
-      subject: e.subject,
-      from: e.fromName ?? e.fromEmail,
-      fromEmail: e.fromEmail,
-      to: parseRecipients(e.toRecipients),
-      date: e.receivedAt.toISOString(),
-      preview: e.bodyPreview ?? '',
-      isRead: e.isRead,
-      hasAttachments: e.hasAttachments,
-      direction: e.direction,
-    })),
-  });
+  return NextResponse.json({ emails: emails.map(mapEmail) });
 }
 
 // POST: Sync emails from Microsoft Graph into DB, then return updated list
@@ -66,11 +53,16 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   }
 
   const searchQuery = `participants:${lead.email}`;
-  const graphUrl = `https://graph.microsoft.com/v1.0/me/messages?$search="${encodeURIComponent(searchQuery)}"&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments&$top=50`;
+  // body is fetched too so the content is persisted in the DB — other users can then
+  // read it without access to the syncing user's mailbox
+  const graphUrl = `https://graph.microsoft.com/v1.0/me/messages?$search="${encodeURIComponent(searchQuery)}"&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,body,isRead,hasAttachments&$top=50`;
 
   try {
     const res = await fetch(graphUrl, {
-      headers: { Authorization: `Bearer ${token.accessToken}` },
+      headers: {
+        Authorization: `Bearer ${token.accessToken}`,
+        Prefer: 'outlook.body-content-type="html"',
+      },
     });
 
     if (!res.ok) {
@@ -96,6 +88,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       );
       const direction = fromEmail.toLowerCase() === lead.email.toLowerCase() ? 'INBOUND' : 'OUTBOUND';
 
+      const bodyHtml = msg.body?.content || null;
       await prisma.email.upsert({
         where: { graphMessageId_leadId: { graphMessageId: msg.id, leadId: id } },
         create: {
@@ -106,6 +99,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
           toRecipients,
           receivedAt: new Date(msg.receivedDateTime),
           bodyPreview: msg.bodyPreview ?? null,
+          bodyHtml,
           isRead: msg.isRead ?? false,
           hasAttachments: msg.hasAttachments ?? false,
           direction,
@@ -114,6 +108,8 @@ export async function POST(request: NextRequest, { params }: Ctx) {
         update: {
           isRead: msg.isRead ?? false,
           subject: msg.subject ?? null,
+          // Backfill body for previously synced mails, but never erase a cached one
+          ...(bodyHtml ? { bodyHtml } : {}),
         },
       });
     }
@@ -136,29 +132,40 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     }
 
     // Return full list from DB (excluding hidden)
+    const includeHidden = new URL(request.url).searchParams.get('includeHidden') === '1';
     const emails = await prisma.email.findMany({
-      where: { leadId: id, isHidden: false },
+      where: { leadId: id, ...(includeHidden ? {} : { isHidden: false }) },
       orderBy: { receivedAt: 'desc' },
     });
 
-    return NextResponse.json({
-      emails: emails.map(e => ({
-        id: e.id,
-        graphMessageId: e.graphMessageId,
-        subject: e.subject,
-        from: e.fromName ?? e.fromEmail,
-        fromEmail: e.fromEmail,
-        to: parseRecipients(e.toRecipients),
-        date: e.receivedAt.toISOString(),
-        preview: e.bodyPreview ?? '',
-        isRead: e.isRead,
-        hasAttachments: e.hasAttachments,
-        direction: e.direction,
-      })),
-    });
+    return NextResponse.json({ emails: emails.map(mapEmail) });
   } catch (err) {
     return NextResponse.json({ error: 'Verbindung zu Microsoft fehlgeschlagen' }, { status: 502 });
   }
+}
+
+type EmailRecord = {
+  id: string; graphMessageId: string; subject: string | null;
+  fromName: string | null; fromEmail: string; toRecipients: string;
+  receivedAt: Date; bodyPreview: string | null; isRead: boolean;
+  hasAttachments: boolean; direction: string; isHidden: boolean;
+};
+
+function mapEmail(e: EmailRecord) {
+  return {
+    id: e.id,
+    graphMessageId: e.graphMessageId,
+    subject: e.subject,
+    from: e.fromName ?? e.fromEmail,
+    fromEmail: e.fromEmail,
+    to: parseRecipients(e.toRecipients),
+    date: e.receivedAt.toISOString(),
+    preview: e.bodyPreview ?? '',
+    isRead: e.isRead,
+    hasAttachments: e.hasAttachments,
+    direction: e.direction,
+    isHidden: e.isHidden,
+  };
 }
 
 function parseRecipients(json: string): string {

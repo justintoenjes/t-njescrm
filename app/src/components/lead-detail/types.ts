@@ -98,6 +98,7 @@ export type PersistedEmail = {
   isRead: boolean;
   hasAttachments: boolean;
   direction: 'INBOUND' | 'OUTBOUND';
+  isHidden: boolean;
 };
 
 export type EnrichedNote = NoteData & {

@@ -468,8 +468,32 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
   }
 
   const [hiddenEmailUndo, setHiddenEmailUndo] = useState<{ id: string; timer: NodeJS.Timeout } | null>(null);
+  const [showHiddenEmails, setShowHiddenEmails] = useState(false);
+
+  async function refreshEmails(includeHidden: boolean) {
+    const res = await fetch(`/api/leads/${lead.id}/emails${includeHidden ? '?includeHidden=1' : ''}`);
+    const data = await res.json();
+    if (!data.error) setEmails(data.emails ?? []);
+  }
+
+  function toggleShowHiddenEmails() {
+    const next = !showHiddenEmails;
+    setShowHiddenEmails(next);
+    refreshEmails(next);
+  }
 
   function hideEmail(emailId: string) {
+    if (showHiddenEmails) {
+      // Hidden mails stay visible (dimmed) — persist immediately, no undo needed
+      setEmails(prev => prev.map(e => e.id === emailId ? { ...e, isHidden: true } : e));
+      fetch(`/api/emails/${emailId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isHidden: true }),
+      });
+      return;
+    }
+
     // Optimistically hide from UI
     setEmails(prev => prev.filter(e => e.id !== emailId));
 
@@ -493,10 +517,17 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
     if (!hiddenEmailUndo) return;
     clearTimeout(hiddenEmailUndo.timer);
     // Re-fetch emails to restore the hidden one
-    fetch(`/api/leads/${lead.id}/emails`)
-      .then(r => r.json())
-      .then(data => { if (!data.error) setEmails(data.emails ?? []); });
+    refreshEmails(showHiddenEmails);
     setHiddenEmailUndo(null);
+  }
+
+  async function unhideEmail(emailId: string) {
+    setEmails(prev => prev.map(e => e.id === emailId ? { ...e, isHidden: false } : e));
+    await fetch(`/api/emails/${emailId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isHidden: false }),
+    });
   }
 
   async function deleteLead() {
@@ -533,6 +564,7 @@ export function useLeadDetail({ lead, onUpdate, onDelete, onClose }: Props) {
     addingTask, addTask, toggleTask, deleteTask, showCompleted, setShowCompleted, loadTasks,
     // Emails
     emails, emailsLoaded, emailsError, emailsSyncing, hideEmail, undoHideEmail, hiddenEmailUndo,
+    showHiddenEmails, toggleShowHiddenEmails, unhideEmail,
     // Computed
     activities, activeOppCount, isRecruiting,
     // Actions

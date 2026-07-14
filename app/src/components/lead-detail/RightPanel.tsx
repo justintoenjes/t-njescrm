@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Send, Brain, X, Sparkles } from 'lucide-react';
+import { Send, Brain, X, Sparkles, Eye, EyeOff } from 'lucide-react';
 import type { LeadFull, TimelineFilter, Activity } from './types';
 import type { UseLeadDetailReturn } from './useLeadDetail';
 import TimelineFilters from './TimelineFilters';
@@ -33,6 +33,7 @@ export default function RightPanel({ lead, state }: Props) {
     fetchAI, aiLoading,
     emailsLoaded, emailsError, emailsSyncing,
     hideEmail, undoHideEmail, hiddenEmailUndo,
+    showHiddenEmails, toggleShowHiddenEmails, unhideEmail,
   } = state;
 
   const filteredActivities = filter === 'all'
@@ -56,7 +57,17 @@ export default function RightPanel({ lead, state }: Props) {
       {/* Header: filters + action buttons */}
       <div className="px-3 lg:px-5 pt-3 lg:pt-4 pb-3 border-b border-gray-100 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <TimelineFilters active={filter} onChange={setFilter} counts={counts} />
+          <div className="flex items-center gap-1 flex-wrap">
+            <TimelineFilters active={filter} onChange={setFilter} counts={counts} />
+            <button
+              onClick={toggleShowHiddenEmails}
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition
+                ${showHiddenEmails ? 'bg-tc-dark text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'}`}
+              title={showHiddenEmails ? 'Ausgeblendete E-Mails verbergen' : 'Ausgeblendete E-Mails anzeigen'}
+            >
+              {showHiddenEmails ? <Eye size={12} /> : <EyeOff size={12} />}
+            </button>
+          </div>
           <div className="flex gap-2 shrink-0">
             <button
               onClick={() => showFollowUpHint ? fetchFollowUp() : setShowFollowUpHint(true)}
@@ -135,6 +146,7 @@ export default function RightPanel({ lead, state }: Props) {
               onMoveNote={handleMoveNote}
               onDeleteNote={deleteNote}
               onHideEmail={hideEmail}
+              onUnhideEmail={unhideEmail}
               formatDate={formatDate}
             />
           ))}

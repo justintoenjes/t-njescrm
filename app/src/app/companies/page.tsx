@@ -10,6 +10,7 @@ import LeadModal, { LeadFull } from '@/components/LeadModal';
 import OpportunityModal from '@/components/OpportunityModal';
 import { PHASE_LABELS, PHASE_COLORS, LeadPhase } from '@/lib/phase';
 import { TEMP_COLORS, Temperature } from '@/lib/temperature';
+import { tagColorClasses, type TagData } from '@/lib/tags';
 
 type CompanyRow = {
   id: string;
@@ -21,6 +22,7 @@ type CompanyRow = {
   totalPipelineValue: number;
   bestPhase: LeadPhase | null;
   tempDistribution: { hot: number; warm: number; cold: number };
+  tags: TagData[];
 };
 
 type CompanyLead = {
@@ -67,6 +69,8 @@ export default function CompaniesPage() {
   const [expandedLoading, setExpandedLoading] = useState(false);
   const [sortBy, setSortBy] = useState('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [allTags, setAllTags] = useState<(TagData & { companyCount: number })[]>([]);
+  const [tagFilter, setTagFilter] = useState('');
   const isAdmin = session?.user?.role === 'ADMIN';
 
   useEffect(() => {
@@ -89,10 +93,22 @@ export default function CompaniesPage() {
     setLoading(true);
     const params = new URLSearchParams();
     if (search) params.set('search', search);
+    if (tagFilter) params.set('tag', tagFilter);
     const res = await fetch(`/api/companies?${params}`);
     setCompanies(await res.json());
     setLoading(false);
-  }, [search]);
+  }, [search, tagFilter]);
+
+  const fetchTags = useCallback(async () => {
+    const res = await fetch('/api/tags');
+    const data = await res.json();
+    if (Array.isArray(data)) setAllTags(data);
+  }, []);
+
+  useEffect(() => {
+    if (authStatus !== 'authenticated') return;
+    fetchTags();
+  }, [fetchTags, authStatus]);
 
   useEffect(() => {
     if (authStatus !== 'authenticated') return;
@@ -167,15 +183,29 @@ export default function CompaniesPage() {
       <Header />
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-4">
         <div className="flex flex-wrap gap-3 items-center justify-between">
-          <div className="relative flex-1 sm:flex-none min-w-0">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Firma suchen…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue w-full sm:w-52"
-            />
+          <div className="flex flex-wrap gap-2 items-center flex-1 sm:flex-none min-w-0">
+            <div className="relative flex-1 sm:flex-none min-w-0">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Firma suchen…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue w-full sm:w-52"
+              />
+            </div>
+            {allTags.length > 0 && (
+              <select
+                value={tagFilter}
+                onChange={(e) => setTagFilter(e.target.value)}
+                className={`border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tc-blue ${tagFilter ? 'text-tc-dark font-medium' : 'text-gray-500'}`}
+              >
+                <option value="">Alle Tags</option>
+                {allTags.map(t => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.companyCount})</option>
+                ))}
+              </select>
+            )}
           </div>
           <button
             onClick={() => setShowCreate(true)}
@@ -234,13 +264,23 @@ export default function CompaniesPage() {
                         {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                       </td>
                       <td className="px-3 py-3.5">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditId(c.id); }}
-                          className="flex items-center gap-2 hover:text-tc-blue transition"
-                        >
-                          <Building2 size={14} className="text-gray-400 shrink-0" />
-                          <span className="font-medium text-gray-900 hover:text-tc-blue">{c.name}</span>
-                        </button>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditId(c.id); }}
+                            className="flex items-center gap-2 hover:text-tc-blue transition"
+                          >
+                            <Building2 size={14} className="text-gray-400 shrink-0" />
+                            <span className="font-medium text-gray-900 hover:text-tc-blue">{c.name}</span>
+                          </button>
+                          {c.tags?.map(tag => (
+                            <span
+                              key={tag.id}
+                              className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${tagColorClasses(tag.color)}`}
+                            >
+                              {tag.name}
+                            </span>
+                          ))}
+                        </div>
                       </td>
                       <td className="px-3 py-3.5">
                         <span className="flex items-center gap-1 text-xs text-gray-600">
@@ -424,7 +464,7 @@ export default function CompaniesPage() {
         <CompanyDetailModal
           companyId={editId}
           onClose={() => setEditId(null)}
-          onUpdate={fetchCompanies}
+          onUpdate={() => { fetchCompanies(); fetchTags(); }}
           onOpenLead={(leadId) => { setEditId(null); openLead(leadId); }}
           onOpenOpportunity={(oppId) => { setEditId(null); setSelectedOppId(oppId); }}
         />

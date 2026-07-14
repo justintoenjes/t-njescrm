@@ -25,6 +25,7 @@ export async function GET(_: NextRequest, { params }: Ctx) {
     prisma.company.findUnique({
       where: { id },
       include: {
+        tags: { select: { id: true, name: true, color: true }, orderBy: { name: 'asc' } },
         leads: {
           include: {
             assignedTo: { select: { id: true, name: true } },

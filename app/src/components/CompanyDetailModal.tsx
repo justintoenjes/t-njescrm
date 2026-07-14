@@ -9,6 +9,8 @@ import KPIBar from '@/components/group-detail/KPIBar';
 import GroupTimeline from '@/components/group-detail/GroupTimeline';
 import GroupNoteInput from '@/components/group-detail/GroupNoteInput';
 import { CALL_PATTERN } from '@/components/group-detail/GroupTimeline';
+import CompanyTags from '@/components/CompanyTags';
+import type { TagData } from '@/lib/tags';
 import type { GroupNote, GroupEmail, GroupActivity, NoteTarget } from '@/components/group-detail/types';
 
 type LeadSummary = {
@@ -35,6 +37,7 @@ type CompanyData = {
   website: string | null;
   createdAt: string;
   leads: LeadSummary[];
+  tags: TagData[];
   activeOppCount: number;
   totalPipelineValue: number;
 };
@@ -121,6 +124,7 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
   // Timeline
   const [activities, setActivities] = useState<GroupActivity[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(true);
+  const [showHiddenEmails, setShowHiddenEmails] = useState(false);
 
   // Note targets
   const [noteTargets, setNoteTargets] = useState<NoteTarget[]>([]);
@@ -148,7 +152,7 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
 
   const fetchTimeline = useCallback(async () => {
     setTimelineLoading(true);
-    const res = await fetch(`/api/companies/${companyId}/timeline`);
+    const res = await fetch(`/api/companies/${companyId}/timeline${showHiddenEmails ? '?includeHidden=1' : ''}`);
     if (!res.ok) { setTimelineLoading(false); return; }
     const data = await res.json();
 
@@ -167,7 +171,16 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
 
     setActivities(acts);
     setTimelineLoading(false);
-  }, [companyId]);
+  }, [companyId, showHiddenEmails]);
+
+  async function setEmailHidden(emailId: string, isHidden: boolean) {
+    await fetch(`/api/emails/${emailId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isHidden }),
+    });
+    fetchTimeline();
+  }
 
   useEffect(() => { fetchCompany(); fetchTimeline(); }, [fetchCompany, fetchTimeline]);
 
@@ -275,6 +288,16 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
                 <div className="p-4 sm:p-5 space-y-5">
                   {/* KPIs */}
                   <KPIBar kpis={kpis} />
+
+                  {/* Tags */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tags</h3>
+                    <CompanyTags
+                      companyId={companyId}
+                      tags={company?.tags ?? []}
+                      onChanged={() => { fetchCompany(); onUpdate(); }}
+                    />
+                  </div>
 
                   {/* Contacts */}
                   <div className={`${mobileTab !== 'contacts' && mobileTab !== 'details' ? 'hidden lg:block' : ''}`}>
@@ -473,7 +496,14 @@ export default function CompanyDetailModal({ companyId, onClose, onUpdate, onOpe
                   <GroupNoteInput targets={noteTargets} onAddNote={handleAddNote} />
                 </div>
                 <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4">
-                  <GroupTimeline activities={activities} loading={timelineLoading} />
+                  <GroupTimeline
+                    activities={activities}
+                    loading={timelineLoading}
+                    showHiddenEmails={showHiddenEmails}
+                    onToggleHiddenEmails={() => setShowHiddenEmails(v => !v)}
+                    onHideEmail={(id) => setEmailHidden(id, true)}
+                    onUnhideEmail={(id) => setEmailHidden(id, false)}
+                  />
                 </div>
               </div>
             </>

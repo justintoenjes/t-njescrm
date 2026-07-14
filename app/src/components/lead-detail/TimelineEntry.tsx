@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, Phone, Paperclip, EyeOff } from 'lucide-react';
+import { Phone, Paperclip, EyeOff, Eye } from 'lucide-react';
 import NoteCard from '@/components/NoteCard';
+import EmailDirectionIcon, { EmailDirectionLabel } from '@/components/EmailDirectionIcon';
 import type { Activity, EnrichedNote } from './types';
 
 type Props = {
@@ -11,23 +12,29 @@ type Props = {
   onMoveNote: (noteId: string, target: { leadId?: string; opportunityId?: string }) => Promise<void>;
   onDeleteNote: (noteId: string) => void;
   onHideEmail?: (emailId: string) => void;
+  onUnhideEmail?: (emailId: string) => void;
   formatDate: (date: string) => string;
 };
 
-export default function TimelineEntry({ activity, moveTargets, onMoveNote, onDeleteNote, onHideEmail, formatDate }: Props) {
+export default function TimelineEntry({ activity, moveTargets, onMoveNote, onDeleteNote, onHideEmail, onUnhideEmail, formatDate }: Props) {
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailBody, setEmailBody] = useState<string | null>(null);
   const [emailBodyLoading, setEmailBodyLoading] = useState(false);
+  const [emailBodyError, setEmailBodyError] = useState<string | null>(null);
 
   async function loadEmailBody(graphMessageId: string) {
-    if (emailOpen) { setEmailOpen(false); setEmailBody(null); return; }
+    if (emailOpen) { setEmailOpen(false); setEmailBody(null); setEmailBodyError(null); return; }
     setEmailOpen(true);
     setEmailBody(null);
+    setEmailBodyError(null);
     setEmailBodyLoading(true);
-    const res = await fetch(`/api/emails/${graphMessageId}`);
-    if (res.ok) {
-      const data = await res.json();
-      setEmailBody(data.bodyHtml);
+    try {
+      const res = await fetch(`/api/emails/${graphMessageId}`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.bodyHtml) setEmailBody(data.bodyHtml);
+      else setEmailBodyError(data.error ?? 'E-Mail konnte nicht geladen werden');
+    } catch {
+      setEmailBodyError('E-Mail konnte nicht geladen werden');
     }
     setEmailBodyLoading(false);
   }
@@ -83,11 +90,9 @@ export default function TimelineEntry({ activity, moveTargets, onMoveNote, onDel
     const email = activity.email;
     const isIncoming = email.direction === 'INBOUND';
     return (
-      <div className="flex gap-3">
+      <div className={`flex gap-3 ${email.isHidden ? 'opacity-50' : ''}`}>
         <div className="flex flex-col items-center">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isIncoming ? 'bg-blue-100' : 'bg-gray-100'}`}>
-            <Mail size={14} className={isIncoming ? 'text-blue-600' : 'text-gray-500'} />
-          </div>
+          <EmailDirectionIcon direction={email.direction} />
           <div className="w-px flex-1 bg-gray-100 mt-1" />
         </div>
         <div className="flex-1 pb-4 min-w-0 group">
@@ -100,8 +105,9 @@ export default function TimelineEntry({ activity, moveTargets, onMoveNote, onDel
                 <p className={`text-sm truncate ${!email.isRead ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
                   {email.subject || '(Kein Betreff)'}
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {isIncoming ? `Von ${email.from}` : `An ${email.to}`}
+                <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5 min-w-0">
+                  <EmailDirectionLabel direction={email.direction} />
+                  <span className="truncate">{isIncoming ? `Von ${email.from}` : `An ${email.to}`}</span>
                 </p>
                 {!emailOpen && (
                   <p className="text-xs text-gray-400 mt-1 truncate">{email.preview}</p>
@@ -112,14 +118,26 @@ export default function TimelineEntry({ activity, moveTargets, onMoveNote, onDel
                 <span className="text-[11px] text-gray-400">
                   {new Date(email.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                 </span>
-                {onHideEmail && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onHideEmail(email.id); }}
-                    className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition ml-1"
-                    title="E-Mail ausblenden"
-                  >
-                    <EyeOff size={12} />
-                  </button>
+                {email.isHidden ? (
+                  onUnhideEmail && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onUnhideEmail(email.id); }}
+                      className="text-gray-400 hover:text-tc-blue transition ml-1"
+                      title="E-Mail wieder einblenden"
+                    >
+                      <Eye size={12} />
+                    </button>
+                  )
+                ) : (
+                  onHideEmail && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onHideEmail(email.id); }}
+                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition ml-1"
+                      title="E-Mail ausblenden"
+                    >
+                      <EyeOff size={12} />
+                    </button>
+                  )
                 )}
               </div>
             </div>
@@ -134,7 +152,7 @@ export default function TimelineEntry({ activity, moveTargets, onMoveNote, onDel
                   dangerouslySetInnerHTML={{ __html: emailBody }}
                 />
               ) : (
-                <p className="text-sm text-gray-400">E-Mail konnte nicht geladen werden</p>
+                <p className="text-sm text-amber-700">{emailBodyError ?? 'E-Mail konnte nicht geladen werden'}</p>
               )}
             </div>
           )}

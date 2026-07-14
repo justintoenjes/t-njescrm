@@ -6,10 +6,12 @@ import { isLeadOwner } from '@/lib/permissions';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-export async function GET(_: NextRequest, { params }: Ctx) {
+export async function GET(request: NextRequest, { params }: Ctx) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const includeHidden = new URL(request.url).searchParams.get('includeHidden') === '1';
 
   const company = await prisma.company.findUnique({
     where: { id },
@@ -41,7 +43,7 @@ export async function GET(_: NextRequest, { params }: Ctx) {
       take: 150,
     }),
     prisma.email.findMany({
-      where: { leadId: { in: leadIds }, isHidden: false },
+      where: { leadId: { in: leadIds }, ...(includeHidden ? {} : { isHidden: false }) },
       include: {
         lead: { select: { id: true, firstName: true, lastName: true } },
       },
@@ -74,6 +76,7 @@ export async function GET(_: NextRequest, { params }: Ctx) {
     isRead: e.isRead,
     hasAttachments: e.hasAttachments,
     direction: e.direction as 'INBOUND' | 'OUTBOUND',
+    isHidden: e.isHidden,
     contextLabel: e.lead ? `${e.lead.firstName} ${e.lead.lastName}`.trim() : null,
   }));
 
