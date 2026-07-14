@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext, DragEndEvent, DragOverEvent, DragStartEvent,
-  PointerSensor, useSensor, useSensors, DragOverlay, closestCorners,
+  PointerSensor, useSensor, useSensors, DragOverlay, closestCorners, useDroppable,
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -86,6 +86,9 @@ function SortableCard({ opp, onOpen, onOpenLead }: { opp: OppCard; onOpen: (id: 
 function Column({ stage, opps, onOpen, onOpenLead }: { stage: OpportunityStage; opps: OppCard[]; onOpen: (id: string) => void; onOpenLead?: (leadId: string) => void }) {
   const colorClass = OPP_STAGE_COLORS[stage];
   const totalValue = opps.reduce((sum, o) => sum + (o.value ?? 0), 0);
+  // Register the column itself as a drop target — otherwise cards can only be
+  // dropped onto other cards, making empty columns (e.g. CLOSING/WON) unreachable
+  const { setNodeRef, isOver } = useDroppable({ id: stage });
 
   return (
     <div className="flex flex-col flex-1 min-w-[80vw] max-w-[85vw] snap-center sm:min-w-[180px] sm:max-w-[280px] sm:snap-align-none">
@@ -98,7 +101,10 @@ function Column({ stage, opps, onOpen, onOpenLead }: { stage: OpportunityStage; 
           <p className="text-xs opacity-60 mt-0.5">{totalValue.toLocaleString('de-DE')} €</p>
         )}
       </div>
-      <div className={`flex-1 rounded-b-lg border border-t-0 bg-white/60 p-2 min-h-[120px] space-y-2 overflow-hidden ${colorClass.split(' ').find(c => c.startsWith('border')) ?? ''}`}>
+      <div
+        ref={setNodeRef}
+        className={`flex-1 rounded-b-lg border border-t-0 p-2 min-h-[120px] space-y-2 overflow-hidden transition-colors ${isOver ? 'bg-tc-blue/10' : 'bg-white/60'} ${colorClass.split(' ').find(c => c.startsWith('border')) ?? ''}`}
+      >
         <SortableContext items={opps.map(o => o.id)} strategy={verticalListSortingStrategy}>
           {opps.map(opp => <SortableCard key={opp.id} opp={opp} onOpen={onOpen} onOpenLead={onOpenLead} />)}
         </SortableContext>

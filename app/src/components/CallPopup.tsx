@@ -143,7 +143,7 @@ export default function CallPopup() {
                 <p className="text-xs text-gray-500">
                   {isConnected ? (sip.onHold ? 'Gehalten' : 'Verbunden') :
                    isRinging && sip.callDirection === 'incoming' ? 'Eingehender Anruf' :
-                   isCalling ? 'Wählt...' : 'Anruf'}
+                   isCalling ? (sip.remoteRinging ? 'Klingelt...' : 'Wählt...') : 'Anruf'}
                 </p>
                 <p className="text-sm font-semibold text-gray-900">{displayName}</p>
                 {sipLeadName && sip.remoteNumber && (

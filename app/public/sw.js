@@ -12,8 +12,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body || '',
-    icon: '/icon',
-    badge: '/icon',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     tag: data.tag || 'crm-notification',
     renotify: true,
     data: { url: data.url || '/' },

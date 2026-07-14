@@ -22,7 +22,7 @@ const defaultActions: SipActions = {
 const defaultState: SipState = {
   registered: false, registering: false, error: null,
   callState: 'idle', callDirection: null, remoteNumber: null,
-  muted: false, onHold: false, callStart: null,
+  remoteRinging: false, muted: false, onHold: false, callStart: null,
 };
 
 const SipContext = createContext<SipContextType>({
@@ -90,21 +90,38 @@ function SipStatusToast({ enabled, state }: { enabled: boolean; state: SipState 
 
 function NotificationBanner({ onDismiss }: { onDismiss: () => void }) {
   const { requestAndSubscribe } = usePush();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function handleEnable() {
-    await requestAndSubscribe();
-    onDismiss();
+    setBusy(true);
+    try {
+      const ok = await requestAndSubscribe();
+      if (ok) { onDismiss(); return; }
+      setFailed(true);
+    } catch {
+      setFailed(true);
+    }
+    setBusy(false);
   }
 
   return (
-    <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[250] animate-in fade-in slide-in-from-top-2">
+    <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[250] animate-in fade-in slide-in-from-top-2 max-w-[calc(100vw-2rem)]">
       <div className="flex items-center gap-3 bg-white rounded-xl shadow-lg border border-gray-200 px-4 py-3 text-sm">
         <Bell size={16} className="text-tc-blue shrink-0" />
-        <span className="text-gray-700">Benachrichtigungen für Anrufe aktivieren?</span>
-        <button onClick={handleEnable}
-          className="bg-tc-blue text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-tc-blue/90 transition whitespace-nowrap">
-          Aktivieren
-        </button>
+        {failed ? (
+          <span className="text-gray-700">
+            Benachrichtigungen sind blockiert — bitte in den Browser-Einstellungen (Schloss-Symbol in der Adressleiste) erlauben.
+          </span>
+        ) : (
+          <>
+            <span className="text-gray-700">Benachrichtigungen für Anrufe aktivieren?</span>
+            <button onClick={handleEnable} disabled={busy}
+              className="bg-tc-blue text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-tc-blue/90 transition whitespace-nowrap disabled:opacity-50">
+              {busy ? 'Aktiviere…' : 'Aktivieren'}
+            </button>
+          </>
+        )}
         <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600">
           <X size={14} />
         </button>

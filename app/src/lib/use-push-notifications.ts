@@ -9,27 +9,41 @@ export function usePushNotifications() {
   const subscribedRef = useRef(false);
 
   useEffect(() => {
-    if (!session || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    // Register the SW whenever supported — call notifications (showNotification)
+    // need a registration even on browsers without PushManager
+    if (!session || !('serviceWorker' in navigator)) return;
 
     navigator.serviceWorker.register('/sw.js').then(async (reg) => {
       // Auto-resubscribe if permission already granted
-      if (Notification.permission === 'granted' && !subscribedRef.current) {
+      if ('PushManager' in window && Notification.permission === 'granted' && !subscribedRef.current) {
         subscribedRef.current = true;
         await subscribeWithReg(reg);
       }
-    });
+    }).catch(() => {});
   }, [session]);
 
   /** Request permission and subscribe. Call this on user action (e.g. task creation). */
   const requestAndSubscribe = useCallback(async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+    if (typeof Notification === 'undefined') return false;
     if (Notification.permission === 'denied') return false;
 
+    // requestPermission must be the first await to keep the user gesture alive
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') return false;
 
-    const reg = await navigator.serviceWorker.ready;
-    await subscribeWithReg(reg);
+    // Push subscription is best-effort: the granted permission alone already
+    // enables SIP call notifications. Never let a hanging SW block the UI.
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      try {
+        const reg = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<null>(resolve => setTimeout(() => resolve(null), 5000)),
+        ]);
+        if (reg) await subscribeWithReg(reg);
+      } catch {
+        // silent — permission is granted, only background push is unavailable
+      }
+    }
     return true;
   }, []);
 

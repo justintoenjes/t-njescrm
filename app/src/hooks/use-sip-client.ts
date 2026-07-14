@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Inviter, Registerer, RegistererState, SessionState, UserAgent } from 'sip.js';
 import type { Invitation, Session } from 'sip.js';
+import type { IncomingResponse } from 'sip.js/lib/core';
 
 export type SipState = {
   registered: boolean;
@@ -12,6 +13,7 @@ export type SipState = {
   callState: 'idle' | 'calling' | 'ringing' | 'connected';
   callDirection: 'incoming' | 'outgoing' | null;
   remoteNumber: string | null;
+  remoteRinging: boolean;
   muted: boolean;
   onHold: boolean;
   callStart: number | null;
@@ -33,6 +35,7 @@ const initialState: SipState = {
   callState: 'idle',
   callDirection: null,
   remoteNumber: null,
+  remoteRinging: false,
   muted: false,
   onHold: false,
   callStart: null,
@@ -152,6 +155,45 @@ function createRinger() {
   };
 }
 
+// German ringback tone (Freizeichen, 425 Hz, 1s an / 4s aus). Started only when the
+// network confirms ringing (180 without early media) — same behaviour as a desk phone.
+function createRingbackTone() {
+  let ctx: AudioContext | null = null;
+  let interval: NodeJS.Timeout | null = null;
+  let stopped = false;
+
+  function beep(audioCtx: AudioContext) {
+    if (stopped) return;
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = 425;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 1);
+  }
+
+  return {
+    start() {
+      if (ctx) return; // already running
+      try {
+        stopped = false;
+        ctx = new AudioContext();
+        beep(ctx);
+        interval = setInterval(() => { if (ctx) beep(ctx); }, 5000);
+      } catch {}
+    },
+    stop() {
+      stopped = true;
+      if (interval) clearInterval(interval);
+      if (ctx) try { ctx.close(); } catch {}
+      ctx = null; interval = null;
+    },
+  };
+}
+
 // Show a system notification for incoming calls (works in background)
 function showCallNotification(number: string): void {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
@@ -184,6 +226,7 @@ export function useSipClient(enabled: boolean) {
   const sessionRef = useRef<Session | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ringerRef = useRef<ReturnType<typeof createRinger> | null>(null);
+  const ringbackRef = useRef<ReturnType<typeof createRingbackTone> | null>(null);
 
   // Create/get audio element
   useEffect(() => {
@@ -254,14 +297,18 @@ export function useSipClient(enabled: boolean) {
         case SessionState.Established:
           setupSessionMedia(session);
           ringerRef.current?.stop();
+          ringbackRef.current?.stop();
+          ringbackRef.current = null;
           closeCallNotification();
-          setState(s => ({ ...s, callState: 'connected', callStart: Date.now() }));
+          setState(s => ({ ...s, callState: 'connected', remoteRinging: false, callStart: Date.now() }));
           break;
         case SessionState.Terminated:
           sessionRef.current = null;
           ringerRef.current?.stop();
+          ringbackRef.current?.stop();
+          ringbackRef.current = null;
           closeCallNotification();
-          setState(s => ({ ...s, callState: 'idle', callDirection: null, remoteNumber: null, muted: false, onHold: false, callStart: null }));
+          setState(s => ({ ...s, callState: 'idle', callDirection: null, remoteNumber: null, remoteRinging: false, muted: false, onHold: false, callStart: null }));
           break;
       }
     });
@@ -424,20 +471,44 @@ export function useSipClient(enabled: boolean) {
         // Stop the test stream immediately — sip.js will acquire its own
         stream.getTracks().forEach(t => t.stop());
 
-        const inviter = new Inviter(ua, target);
+        // earlyMedia: play provisional audio from the network (real ringback,
+        // announcements) as soon as a 180/183 with SDP arrives
+        const inviter = new Inviter(ua, target, { earlyMedia: true });
         bindSession(inviter, 'outgoing');
         inviter.invite({
+          requestDelegate: {
+            onProgress: (response: IncomingResponse) => {
+              const code = response.message.statusCode ?? 0;
+              const hasEarlyMedia = !!response.message.body;
+              console.log('[SIP] Progress:', code, 'earlyMedia:', hasEarlyMedia);
+              if (code !== 180 && code !== 183) return;
+              setState(s => ({ ...s, remoteRinging: true }));
+              if (hasEarlyMedia) {
+                // Network delivers real audio — attach it and stop any local tone
+                ringbackRef.current?.stop();
+                ringbackRef.current = null;
+                setupSessionMedia(inviter);
+              } else if (!ringbackRef.current) {
+                // Ringing confirmed but no audio stream: standard local ringback
+                ringbackRef.current = createRingbackTone();
+                ringbackRef.current.start();
+              }
+            },
+          },
           sessionDescriptionHandlerOptions: {
             constraints: { audio: true, video: false },
           },
           sessionDescriptionHandlerModifiers: [sdpCleanModifier],
         }).catch((err: unknown) => {
           console.error('[SIP] invite() failed:', err);
+          ringbackRef.current?.stop();
+          ringbackRef.current = null;
           setState(s => ({
             ...s,
             callState: 'idle',
             callDirection: null,
             remoteNumber: null,
+            remoteRinging: false,
             error: err instanceof Error ? err.message : 'Anruf fehlgeschlagen',
           }));
         });
